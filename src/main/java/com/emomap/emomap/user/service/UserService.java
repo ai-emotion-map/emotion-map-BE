@@ -37,7 +37,7 @@ public class UserService {
         userRepository.save(User.builder()
                 .email(req.getEmail())
                 .password(req.getPassword())
-                .nickname("User-" + RandomStringUtils.randomNumeric(6))
+                .nickname("user-" + RandomStringUtils.randomNumeric(6))
                 .build());
     }
 

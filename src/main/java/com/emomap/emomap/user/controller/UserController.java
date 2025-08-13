@@ -9,7 +9,7 @@ import java.util.Map;                                    // 간단 응답용 Map
 
 @RestController                                          // REST API를 제공함
 @RequiredArgsConstructor                                 // final 필드로 생성자 자동 주입
-@RequestMapping("/users")                                // /users로 시작
+@RequestMapping("/api/user")                                // /users로 시작
 public class UserController {
     private final UserRepository repo;                   // 의존성 추가
 
