@@ -1,7 +1,10 @@
 package com.emomap.emomap.user.service;
 
+import com.emomap.emomap.common.jwt.JwtTokenUtil;
 import com.emomap.emomap.user.entity.User;
+import com.emomap.emomap.user.entity.dto.request.LoginRequestDTO;
 import com.emomap.emomap.user.entity.dto.request.SignupRequestDTO;
+import com.emomap.emomap.user.entity.dto.response.JwtTokenResponseDTO;
 import com.emomap.emomap.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -39,6 +42,21 @@ public class UserService {
                 .password(req.getPassword())
                 .nickname("user-" + RandomStringUtils.randomNumeric(6))
                 .build());
+    }
+
+    //로그인
+    @Transactional
+    public JwtTokenResponseDTO login(LoginRequestDTO req){
+        User user = userRepository.findByEmail(req.getEmail()).orElse(null);
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자 찾을 수 없음");
+        if(!passwordEncoder.matches(req.getPassword(), user.getPassword()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않음");
+
+        JwtTokenResponseDTO res = new JwtTokenResponseDTO();
+        res.setAccess_token(JwtTokenUtil.createToken(user.getEmail(), secretKey, expirationTime));
+        res.setExpires_in(expirationTime.toString());
+        return res;
     }
 
     //이메일 중복 확인
