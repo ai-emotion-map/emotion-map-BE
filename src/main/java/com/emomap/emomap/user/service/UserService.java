@@ -1,5 +1,6 @@
 package com.emomap.emomap.user.service;
 
+import com.emomap.emomap.user.entity.User;
 import com.emomap.emomap.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,5 +21,18 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    //이메일 중복 확인
+    public boolean checkEmailDuplication(String email) {
+        return userRepository.existsByEmail(email);
+    }
 
+    //Id 조회
+    public User findById(Long id) {
+        return userRepository.findById(id).orElse(null);
+    }
+
+    //Email 조회
+    public User findByEmail(String email) {
+        return userRepository.findByEmail(email).orElse(null);
+    }
 }
