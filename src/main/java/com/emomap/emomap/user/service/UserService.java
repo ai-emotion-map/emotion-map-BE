@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Primary
 @RequiredArgsConstructor
-public class MemberService {
+public class UserService {
 
     @Value("${spring.jwt.secretKey}") // jwt secretKey
     private String secretKey;
