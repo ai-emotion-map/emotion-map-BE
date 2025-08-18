@@ -3,11 +3,12 @@ WORKDIR /app
 
 USER gradle
 
-COPY build.gradle settings.gradle ./
-COPY gradle ./gradle
+COPY --chown=gradle:gradle build.gradle settings.gradle ./
+COPY --chown=gradle:gradle gradle ./gradle
+
 RUN gradle build -x test --parallel || return 0
 
-COPY . .
+COPY --chown=gradle:gradle . .
 RUN gradle clean bootJar -x test
 
 
