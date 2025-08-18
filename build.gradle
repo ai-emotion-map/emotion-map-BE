@@ -55,7 +55,7 @@ dependencies {
 }
 
 springBoot {
-    mainClass = 'com.emomap.emomap.EmomapApplication'
+    mainClass.set("com.emomap.emomap.EmomapApplication")
 }
 
 
