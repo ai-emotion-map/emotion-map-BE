@@ -1,15 +1,18 @@
 FROM gradle:7.6.2-jdk17 AS builder
 WORKDIR /app
 
+USER root
+RUN mkdir -p /app/.gradle && chown -R gradle:gradle /app/.gradle
+
 USER gradle
 
-COPY --chown=gradle:gradle build.gradle settings.gradle ./
-COPY --chown=gradle:gradle gradle ./gradle
-
+COPY build.gradle settings.gradle ./
+COPY gradle ./gradle
 RUN gradle build -x test --parallel || return 0
 
-COPY --chown=gradle:gradle . .
+COPY . .
 RUN gradle clean bootJar -x test
+
 
 
 FROM openjdk:17-jdk-slim
