@@ -13,7 +13,7 @@ RUN gradle --no-daemon build -x test --parallel || true
 COPY --chown=gradle:gradle . .
 
 RUN rm -rf /tmp/gradle-cache/* && \
-    gradle --no-daemon clean bootJar -x test --refresh-dependencies
+    gradle --no-daemon clean bootJar -x test --no-parallel --rerun-tasks
 
 FROM openjdk:17-jdk-slim
 WORKDIR /app
