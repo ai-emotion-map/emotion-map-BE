@@ -1,18 +1,18 @@
 FROM gradle:7.6.2-jdk17 AS builder
 WORKDIR /app
 
-USER root
-RUN mkdir -p /app/.gradle && chown -R gradle:gradle /app/.gradle
+ENV GRADLE_USER_HOME=/app/.gradle
+
+RUN mkdir -p ${GRADLE_USER_HOME} && chown -R gradle:gradle ${GRADLE_USER_HOME}
 
 USER gradle
 
 COPY build.gradle settings.gradle ./
 COPY gradle ./gradle
-RUN gradle build -x test --parallel || return 0
+RUN gradle --no-daemon build -x test --parallel || true
 
 COPY . .
-RUN gradle clean bootJar -x test
-
+RUN gradle --no-daemon clean bootJar -x test
 
 
 FROM openjdk:17-jdk-slim
