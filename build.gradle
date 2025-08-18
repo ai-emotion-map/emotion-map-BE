@@ -54,6 +54,11 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+springBoot {
+    mainClass = 'com.emomap.emomap.EmomapApplication'
+}
+
+
 tasks.named('test') {
     useJUnitPlatform()
 }
