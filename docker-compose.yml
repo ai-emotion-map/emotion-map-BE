@@ -4,6 +4,16 @@ services:
     container_name: emomap_app
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
+
+      SPRING_DATASOURCE_URL: ${DB_URL}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASS}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+      APP_GEMINI_API_KEY: ${GEMINI_API_KEY}
+      APP_KAKAO_REST_KEY: ${KAKAO_REST_KEY}
     restart: always
