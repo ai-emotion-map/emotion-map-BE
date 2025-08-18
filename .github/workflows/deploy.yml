@@ -30,9 +30,9 @@ jobs:
       - name: Build & run on EC2 with docker-compose
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            set -e
             cd ~/app
             docker-compose down || true
-            docker-compose up -d --build
+            docker-compose build --no-cache
+            docker-compose up -d
             docker image prune -f || true
           EOF
