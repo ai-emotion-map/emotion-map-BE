@@ -37,7 +37,6 @@ public class RedisConfig {
 
         // SSL 설정 (Redis Cloud용)
         LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
-                .useSsl()
                 .build();
 
         return new LettuceConnectionFactory(config, clientConfig);
