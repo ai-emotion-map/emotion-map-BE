@@ -47,6 +47,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 if (JwtTokenUtil.isExpired(token, secretKey)) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "토큰이 만료되었습니다.");
                 }
+                Object typ = JwtTokenUtil.extractToken(token, secretKey).get("typ");
+                if ("refresh".equals(typ)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "리프레시 토큰으로는 접근할 수 없습니다.");
+                }
             } catch (Exception e) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "토큰이 유효하지 않습니다.");
             }

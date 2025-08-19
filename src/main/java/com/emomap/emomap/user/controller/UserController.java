@@ -1,30 +1,50 @@
-package com.emomap.emomap.user.controller;              // 유저 컨트롤러 패키지
+package com.emomap.emomap.user.controller;
 
+import com.emomap.emomap.common.jwt.service.RefreshTokenService;
+import com.emomap.emomap.user.entity.dto.request.LoginRequestDTO;
+import com.emomap.emomap.user.entity.dto.request.SignupRequestDTO;
+import com.emomap.emomap.user.entity.dto.response.JwtTokenResponseDTO;
 import com.emomap.emomap.user.repository.UserRepository; // DB 접근용 리포
 import com.emomap.emomap.user.entity.User;              // 엔티티
+import com.emomap.emomap.user.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;                   // 생성자 자동으로 만들어주는 lombok
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;        // @RestController, 매핑 어노테이션들
 
 import java.util.Map;                                    // 간단 응답용 Map
 
-@RestController                                          // REST API를 제공함
-@RequiredArgsConstructor                                 // final 필드로 생성자 자동 주입
-@RequestMapping("/users")                                // /users로 시작
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/user")
 public class UserController {
-    private final UserRepository repo;                   // 의존성 추가
+    private final UserService userService;
+    private final RefreshTokenService refreshTokenService;
 
-    @PostMapping                                         // POST /users로 유저 생성함
-    public Map<String,Object> create(@RequestBody CreateUserReq req) { // 요청 바디를 DTO로 받음
-        User u = User.builder().email(req.email()).nickname(req.nickname()).build(); // 엔티티로 매핑
-        repo.save(u);                                   // DB에 저장
-        return Map.of("id", u.getId());                 // 생성된 유저 id만 반환
+    public record RefreshReq(String refreshToken) {}
+
+    @PostMapping("/signup")
+    @ResponseBody
+    public ResponseEntity<String> signup(@Valid @RequestBody SignupRequestDTO req){
+        userService.signupUser(req);
+        return ResponseEntity.ok("회원가입 성공");
     }
 
-    @GetMapping("/{id}")                                 // GET /users/{id}로 조회
-    public User get(@PathVariable Long id) {             // 경로에서 Long을 받음
-        return repo.findById(id).orElseThrow();          // 없으면 404 오류 나옴
+    @PostMapping("/login")
+    @ResponseBody
+    public ResponseEntity<JwtTokenResponseDTO> login(@Valid @RequestBody LoginRequestDTO req){
+        return ResponseEntity.ok(userService.login(req));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<JwtTokenResponseDTO> refresh(@RequestBody RefreshReq req) {
+        JwtTokenResponseDTO tokens = refreshTokenService.rotate(req.refreshToken(), null, null);
+        return ResponseEntity.ok(tokens);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestBody RefreshReq req) {
+        refreshTokenService.revoke(req.refreshToken());
+        return ResponseEntity.noContent().build();
     }
 }
-
-// 요청 바디용 DTO
-record CreateUserReq(String email, String nickname) {}   // 이메일이랑 닉네임만 받으면 됨

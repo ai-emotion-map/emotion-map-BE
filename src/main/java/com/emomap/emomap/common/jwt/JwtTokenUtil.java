@@ -13,6 +13,7 @@ public class JwtTokenUtil {
         // 포함할 정보 설정
         Claims claims = Jwts.claims();
         claims.put("email", email);
+        claims.put("typ", "access");
 
         // 발급
         return Jwts.builder()
@@ -24,14 +25,16 @@ public class JwtTokenUtil {
     }
 
     // Refresh Token 생성
-    public static String createRefreshToken(String email, String secretKey, long expiresTime) {
+    public static String createRefreshToken(String email, String secretKey, long expiresTime, String jti) {
         // 포함할 정보 설정
         Claims claims = Jwts.claims();
         claims.put("email", email);
+        claims.put("typ", "refresh");
 
         // 발급
         return Jwts.builder()
                 .setClaims(claims)
+                .setId(jti)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + expiresTime))
                 .signWith(SignatureAlgorithm.HS256, secretKey)

@@ -1,6 +1,7 @@
 package com.emomap.emomap.user.service;
 
 import com.emomap.emomap.common.jwt.JwtTokenUtil;
+import com.emomap.emomap.common.jwt.service.RefreshTokenService;
 import com.emomap.emomap.user.entity.User;
 import com.emomap.emomap.user.entity.dto.request.LoginRequestDTO;
 import com.emomap.emomap.user.entity.dto.request.SignupRequestDTO;
@@ -25,9 +26,12 @@ public class UserService {
     private String secretKey;
     @Value("${spring.jwt.expirationTime}")
     private Long expirationTime;
+    @Value("${spring.jwt.refresh-expirationTime}")
+    private Long refreshExpirationTime;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
 
     //회원가입
     @Transactional
@@ -56,6 +60,11 @@ public class UserService {
         JwtTokenResponseDTO res = new JwtTokenResponseDTO();
         res.setAccess_token(JwtTokenUtil.createToken(user.getEmail(), secretKey, expirationTime));
         res.setExpires_in(expirationTime.toString());
+
+        String refresh = refreshTokenService.issueAndStore(user.getEmail(), null, null);
+        res.setRefresh_token(refresh);
+        res.setRefresh_expires_in(refreshExpirationTime.toString());
+
         return res;
     }
 
