@@ -58,14 +58,14 @@ public class RefreshTokenService {
         String jti = claims.getId();
         String email = (String) claims.get("email");
 
-        Optional<RefreshToken> saved = refreshRepo.findById(Long.valueOf(jti));
+        Optional<RefreshToken> saved = refreshRepo.findById(jti);
         if (saved.isEmpty()) {
             // 재사용/탈취 의심
             throw new IllegalStateException("Refresh token invalid or already used");
         }
 
         // 사용된 jti 제거(1회성)
-        refreshRepo.deleteById(Long.valueOf(jti));
+        refreshRepo.deleteById(jti);
 
         String newAccess = JwtTokenUtil.createToken(email, secretKey, accessExpirationTime);
 
@@ -86,7 +86,7 @@ public class RefreshTokenService {
         Claims claims = parse(refreshToken);
         if (!"refresh".equals(claims.get("typ"))) return;
 
-        refreshRepo.deleteById(Long.valueOf(claims.getId()));
+        refreshRepo.deleteById(claims.getId());
     }
 
     // parser (jjwt 0.9.x)
