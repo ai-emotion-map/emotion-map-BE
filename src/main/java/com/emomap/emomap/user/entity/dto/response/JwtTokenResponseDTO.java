@@ -16,4 +16,10 @@ public class JwtTokenResponseDTO {
 
     @NotBlank(message = "엑세스 토큰 만료시간이 비어있습니다")
     private String expires_in;
+
+    @NotBlank(message = "리프레시 토큰이 비어있습니다")
+    private String refresh_token;
+
+    @NotBlank(message = "리프레시 토큰 만료시간이 비어있습니다")
+    private String refresh_expires_in;
 }
