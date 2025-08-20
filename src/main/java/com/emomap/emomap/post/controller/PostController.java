@@ -50,18 +50,15 @@ public class PostController {
             description = "이미지를 포함한 게시글 업로드 (multipart/form-data)")
     @PostMapping(path = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CreatePostResponseDTO createByForm(
-            @Parameter(description = "작성자 ID") @RequestPart("userId") Long userId,
-            @Parameter(description = "게시글 내용") @RequestPart("content") String content,
-            @Parameter(description = "위도") @RequestPart("lat") Double lat,
-            @Parameter(description = "경도") @RequestPart("lng") Double lng,
-            @Parameter(description = "도로명 주소") @RequestPart(value = "roadAddress", required = false) String roadAddress,
-            @Parameter(description = "감정 태그(JSON string)") @RequestPart(value = "emotions", required = false) String emotions,
-            @Parameter(description = "이미지 파일 리스트") @RequestPart(value = "images", required = false) List<MultipartFile> images
+            @RequestPart("post") @Valid CreatePostFormDTO req,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
-        CreatePostFormDTO req = new CreatePostFormDTO(
-                userId, content, lat, lng, roadAddress, emotions, images
+        CreatePostFormDTO newReq = new CreatePostFormDTO(
+                req.userId(), req.content(), req.lat(), req.lng(),
+                req.roadAddress(), req.emotions(), images
         );
-        return postService.createPostForm(req);
+
+        return postService.createPostForm(newReq);
     }
 
     // 기존 상세 조회를 DTO로
