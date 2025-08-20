@@ -72,7 +72,7 @@ public class PostService {
         if (page < 0) page = 0;
         if (size <= 0 || size > 100) size = 20;
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = PageRequest.of(page, size);
 
         Page<Post> result = postRepository.searchNative(
                 emptyToNull(q),
