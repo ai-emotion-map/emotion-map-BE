@@ -10,6 +10,8 @@ import com.emomap.emomap.post.entity.dto.response.PostDetailResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.SearchPostResponseDTO;
 import com.emomap.emomap.post.entity.dto.request.CreatePostFormDTO;
 import com.emomap.emomap.post.service.PostService;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -28,7 +30,16 @@ public class PostController {
 
     private final PostService postService;
 
-    @PostMapping
+    @Operation(summary = "게시글 생성(JSON)")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = CreatePostRequestDTO.class)
+            )
+    )
+
+    @PostMapping(consumes = "application/json")
     public Map<String, Object> create(@RequestBody @Valid CreatePostRequestDTO req) {
         return postService.createPost(req);
     }
