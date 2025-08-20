@@ -10,12 +10,14 @@ import com.emomap.emomap.post.entity.dto.response.PostDetailResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.SearchPostResponseDTO;
 import com.emomap.emomap.post.entity.dto.request.CreatePostFormDTO;
 import com.emomap.emomap.post.service.PostService;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -52,10 +54,19 @@ public class PostController {
         return postService.createPost(req);
     }
 
-    private static final String UPLOAD_DIR = "src/main/resources/static/uploads/";
+    private static final Path UPLOAD_DIR = Paths.get("/home/ec2-user/app/uploads");
 
-    @Operation(summary = "게시글 생성(FormData)",
-            description = "이미지를 포함한 게시글 업로드 (multipart/form-data)")
+    @Operation(
+            summary = "게시글 생성(FormData)",
+            description = "이미지를 포함한 게시글 업로드 (multipart/form-data)",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                            schema = @Schema(implementation = CreatePostFormSwagger.class)
+                    )
+            )
+    )
     @PostMapping(path = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CreatePostResponseDTO createByForm(
             @RequestPart("userId") Long userId,
@@ -70,7 +81,7 @@ public class PostController {
 
         if (images != null && !images.isEmpty()) {
             try {
-                Path uploadPath = Paths.get(UPLOAD_DIR);
+                Path uploadPath = UPLOAD_DIR;
                 if (!Files.exists(uploadPath)) {
                     Files.createDirectories(uploadPath);
                 }
@@ -94,6 +105,20 @@ public class PostController {
         );
         return postService.createPostForm(serviceReq);
     }
+
+    static class CreatePostFormSwagger {
+        public Long userId;
+        public String content;
+        public Double lat;
+        public Double lng;
+        public String roadAddress;
+        public String emotions;
+
+        @Schema(description = "이미지 파일 리스트")
+        @ArraySchema(schema = @Schema(type = "string", format = "binary"))
+        public List<MultipartFile> images;
+    }
+
 
     // 기존 상세 조회를 DTO로
     @GetMapping("/{id}")
