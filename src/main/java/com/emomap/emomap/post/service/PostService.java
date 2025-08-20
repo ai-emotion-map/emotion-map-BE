@@ -20,10 +20,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import java.time.ZoneId;
+import java.time.OffsetDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class PostService {
-
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private final PostRepository postRepository;
     private final Emotion emotionClassifier;
     private final Kakao kakaoAPI;
@@ -105,7 +108,7 @@ public class PostService {
                 p.getRoadAddress(),
                 p.getContent(),
                 splitTags(p.getEmotions()),
-                p.getCreatedAt()
+                toOffset(p.getCreatedAt())
         );
     }
 
@@ -153,7 +156,7 @@ public class PostService {
 
         return new PostDetailResponseDTO(
                 p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(),
-                p.getContent(), splitTags(p.getEmotions()), urls, p.getCreatedAt()
+                p.getContent(), splitTags(p.getEmotions()), urls, toOffset(p.getCreatedAt())
         );
     }
 
@@ -163,8 +166,12 @@ public class PostService {
             String thumb = null;
             return new FeedItemDTO(
                     p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(),
-                    thumb, splitTags(p.getEmotions()), p.getCreatedAt()
+                    thumb, splitTags(p.getEmotions()), toOffset(p.getCreatedAt())
             );
         });
+    }
+
+    private OffsetDateTime toOffset(java.time.LocalDateTime ldt) {
+        return (ldt == null) ? null : ldt.atZone(KST).toOffsetDateTime();
     }
 }
