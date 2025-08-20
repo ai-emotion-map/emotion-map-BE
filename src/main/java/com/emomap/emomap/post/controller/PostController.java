@@ -21,8 +21,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -46,6 +52,7 @@ public class PostController {
         return postService.createPost(req);
     }
 
+    private static final String UPLOAD_DIR = "src/main/resources/static/uploads/";
 
     @Operation(summary = "게시글 생성(FormData)",
             description = "이미지를 포함한 게시글 업로드 (multipart/form-data)")
@@ -59,12 +66,29 @@ public class PostController {
             @RequestPart(value = "emotions", required = false) String emotions,
             @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
-        List<String> imageUrls = null;
+        List<String> imageUrls = new ArrayList<>();
+
         if (images != null && !images.isEmpty()) {
-            imageUrls = images.stream()
-                    .map(file -> "/uploads/" + file.getOriginalFilename())
-                    .collect(Collectors.toList());
+            try {
+                Path uploadPath = Paths.get(UPLOAD_DIR);
+                if (!Files.exists(uploadPath)) {
+                    Files.createDirectories(uploadPath);
+                }
+
+                for (MultipartFile file : images) {
+                    String originalFileName = file.getOriginalFilename();
+                    String uniqueFileName = UUID.randomUUID().toString() + "_" + originalFileName;
+                    Path filePath = uploadPath.resolve(uniqueFileName); // 저장될 파일의 전체 경로
+
+                    Files.copy(file.getInputStream(), filePath);
+
+                    imageUrls.add("/uploads/" + uniqueFileName);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
+
         CreatePostFormDTO serviceReq = new CreatePostFormDTO(
                 userId, content, lat, lng, roadAddress, emotions, imageUrls
         );
