@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -39,21 +40,23 @@ public class PostController {
             )
     )
 
-    @PostMapping(consumes = "application/json")
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> create(@RequestBody @Valid CreatePostRequestDTO req) {
         return postService.createPost(req);
     }
 
 
-    @PostMapping(path = "/form", consumes = MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "게시글 생성(FormData)",
+            description = "이미지를 포함한 게시글 업로드 (multipart/form-data)")
+    @PostMapping(path = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CreatePostResponseDTO createByForm(
-            @RequestPart("userId") Long userId,
-            @RequestPart("content") String content,
-            @RequestPart("lat") Double lat,
-            @RequestPart("lng") Double lng,
-            @RequestPart(value = "roadAddress", required = false) String roadAddress,
-            @RequestPart(value = "emotions", required = false) String emotions,
-            @RequestPart(value = "images", required = false) List<MultipartFile> images
+            @Parameter(description = "작성자 ID") @RequestPart("userId") Long userId,
+            @Parameter(description = "게시글 내용") @RequestPart("content") String content,
+            @Parameter(description = "위도") @RequestPart("lat") Double lat,
+            @Parameter(description = "경도") @RequestPart("lng") Double lng,
+            @Parameter(description = "도로명 주소") @RequestPart(value = "roadAddress", required = false) String roadAddress,
+            @Parameter(description = "감정 태그(JSON string)") @RequestPart(value = "emotions", required = false) String emotions,
+            @Parameter(description = "이미지 파일 리스트") @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
         CreatePostFormDTO req = new CreatePostFormDTO(
                 userId, content, lat, lng, roadAddress, emotions, images
