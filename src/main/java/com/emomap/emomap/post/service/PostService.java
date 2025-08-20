@@ -138,6 +138,7 @@ public class PostService {
                 .lat(req.lat())
                 .lng(req.lng())
                 .roadAddress(road)
+                .imageUrls(req.imageUrls()) // 컨트롤러에서 넘어온 imageUrls를 Post 엔티티에 저장
                 .build();
         postRepository.save(p);
 
@@ -152,7 +153,7 @@ public class PostService {
         Post p = postRepository.findById(id).orElseThrow();
 
         // 이미지 URL 로딩(저장소가 있으면 교체)
-        List<String> urls = List.of();
+        List<String> urls = p.getImageUrls();
 
         return new PostDetailResponseDTO(
                 p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(),
@@ -163,7 +164,9 @@ public class PostService {
     public Page<FeedItemDTO> getLatestFeed(int page, int size) {
         Page<Post> posts = postRepository.findLatest(PageRequest.of(page, size));
         return posts.map(p -> {
-            String thumb = null;
+            String thumb = (p.getImageUrls() != null && !p.getImageUrls().isEmpty())
+                    ? p.getImageUrls().get(0)
+                    : null;
             return new FeedItemDTO(
                     p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(),
                     thumb, splitTags(p.getEmotions()), toOffset(p.getCreatedAt())

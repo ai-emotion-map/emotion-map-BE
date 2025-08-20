@@ -4,6 +4,8 @@ import com.emomap.emomap.common.domain.BaseEntity;
 import jakarta.persistence.*;                            // JPA 어노테이션
 import lombok.*;                                         // lombok
 
+import java.util.List;
+
 @Entity                                                 // JPA 엔티티
 @Table(                                                  // 테이블 설정
         name = "posts",                                 // 테이블명 posts 함
@@ -30,4 +32,9 @@ public class Post extends BaseEntity {
     @Column(nullable=false) private double lng;          // 경도
 
     private String roadAddress;                          // 도로명 주소
+
+    @ElementCollection
+    @CollectionTable(name = "post_images", joinColumns = @JoinColumn(name = "post_id"))
+    @Column(name = "image_url")
+    private List<String> imageUrls;
 }

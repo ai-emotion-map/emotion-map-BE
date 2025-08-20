@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -50,15 +51,24 @@ public class PostController {
             description = "이미지를 포함한 게시글 업로드 (multipart/form-data)")
     @PostMapping(path = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CreatePostResponseDTO createByForm(
-            @RequestPart("post") @Valid CreatePostFormDTO req,
+            @RequestPart("userId") Long userId,
+            @RequestPart("content") String content,
+            @RequestPart(value = "lat", required = false) Double lat,
+            @RequestPart(value = "lng", required = false) Double lng,
+            @RequestPart(value = "roadAddress", required = false) String roadAddress,
+            @RequestPart(value = "emotions", required = false) String emotions,
             @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
-        CreatePostFormDTO newReq = new CreatePostFormDTO(
-                req.userId(), req.content(), req.lat(), req.lng(),
-                req.roadAddress(), req.emotions(), images
+        List<String> imageUrls = null;
+        if (images != null && !images.isEmpty()) {
+            imageUrls = images.stream()
+                    .map(file -> "/uploads/" + file.getOriginalFilename())
+                    .collect(Collectors.toList());
+        }
+        CreatePostFormDTO serviceReq = new CreatePostFormDTO(
+                userId, content, lat, lng, roadAddress, emotions, imageUrls
         );
-
-        return postService.createPostForm(newReq);
+        return postService.createPostForm(serviceReq);
     }
 
     // 기존 상세 조회를 DTO로
