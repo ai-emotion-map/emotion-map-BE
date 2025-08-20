@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,18 @@ public class PostController {
 
 
     @PostMapping(path = "/form", consumes = MULTIPART_FORM_DATA_VALUE)
-    public CreatePostResponseDTO createByForm(@ModelAttribute CreatePostFormDTO req) {
+    public CreatePostResponseDTO createByForm(
+            @RequestPart("userId") Long userId,
+            @RequestPart("content") String content,
+            @RequestPart("lat") Double lat,
+            @RequestPart("lng") Double lng,
+            @RequestPart(value = "roadAddress", required = false) String roadAddress,
+            @RequestPart(value = "emotions", required = false) String emotions,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
+    ) {
+        CreatePostFormDTO req = new CreatePostFormDTO(
+                userId, content, lat, lng, roadAddress, emotions, images
+        );
         return postService.createPostForm(req);
     }
 
