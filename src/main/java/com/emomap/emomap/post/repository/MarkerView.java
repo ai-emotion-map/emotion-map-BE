@@ -1,0 +1,8 @@
+package com.emomap.emomap.post.repository;
+
+public interface MarkerView {
+    Long getId();
+    Double getLat();
+    Double getLng();
+    String getEmotions(); // 컨트롤러 및 서비스에서 split 해서 tags[]로 변환
+}

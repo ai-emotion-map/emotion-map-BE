@@ -11,15 +11,68 @@ public interface PostRepository extends JpaRepository<Post, Long> { // CRUD + �
     @Query("select p from Post p order by p.createdAt desc")        // 최신순 피드
     Page<Post> findLatest(Pageable pageable);                       // Page로 받기
 
-    // 지도 마커 범위 조회
-    @Query("""                                                      
-    select p from Post p
-     where p.lat between :swLat and :neLat
-       and p.lng between :swLng and :neLng
-     order by p.createdAt desc
-  """)
-    List<Post> findMarkers(@Param("swLat") double swLat,            // 남서쪽 위도
-                           @Param("neLat") double neLat,            // 북동쪽 위도
-                           @Param("swLng") double swLng,            // 남서쪽 경도
-                           @Param("neLng") double neLng);           // 북동쪽 경도
+    // 검색/필터(키워드, 태그, 지도 범위) + 페이징
+    @Query(
+            value = """
+            SELECT *
+            FROM posts p
+            WHERE
+              -- q: 내용/주소 검색(없으면 무시)
+              ( :q IS NULL OR :q = '' 
+                OR p.content ILIKE CONCAT('%', :q, '%')
+                OR p.road_address ILIKE CONCAT('%', :q, '%') )
+              AND
+              -- tag: emotions 포함 여부(없으면 무시)
+              ( :tag IS NULL OR :tag = '' 
+                OR p.emotions ILIKE CONCAT('%', :tag, '%') )
+              AND
+              -- 지도 범위(BBox): 네 값이 모두 있을 때만 적용
+              ( (:minLat IS NULL OR :maxLat IS NULL OR :minLng IS NULL OR :maxLng IS NULL)
+                OR (p.lat BETWEEN :minLat AND :maxLat AND p.lng BETWEEN :minLng AND :maxLng) )
+            ORDER BY p.created_at DESC
+            """,
+            countQuery = """
+            SELECT count(*)
+            FROM posts p
+            WHERE
+              ( :q IS NULL OR :q = '' 
+                OR p.content ILIKE CONCAT('%', :q, '%')
+                OR p.road_address ILIKE CONCAT('%', :q, '%') )
+              AND
+              ( :tag IS NULL OR :tag = '' 
+                OR p.emotions ILIKE CONCAT('%', :tag, '%') )
+              AND
+              ( (:minLat IS NULL OR :maxLat IS NULL OR :minLng IS NULL OR :maxLng IS NULL)
+                OR (p.lat BETWEEN :minLat AND :maxLat AND p.lng BETWEEN :minLng AND :maxLng) )
+            """,
+            nativeQuery = true
+    )
+    Page<Post> searchNative(
+            @Param("q") String q,
+            @Param("tag") String tag,
+            @Param("minLat") Double minLat,
+            @Param("maxLat") Double maxLat,
+            @Param("minLng") Double minLng,
+            @Param("maxLng") Double maxLng,
+            Pageable pageable
+    );
+
+    // 지도 마커 전용
+    @Query(
+            value = """
+            SELECT p.id, p.lat, p.lng, COALESCE(p.emotions,'') AS emotions
+            FROM posts p
+            WHERE
+              ( (:minLat IS NULL OR :maxLat IS NULL OR :minLng IS NULL OR :maxLng IS NULL)
+                OR (p.lat BETWEEN :minLat AND :maxLat AND p.lng BETWEEN :minLng AND :maxLng) )
+            ORDER BY p.created_at DESC
+            """,
+            nativeQuery = true
+    )
+    List<MarkerView> findMarkersNative(
+            @Param("minLat") Double minLat,
+            @Param("maxLat") Double maxLat,
+            @Param("minLng") Double minLng,
+            @Param("maxLng") Double maxLng
+    );
 }
