@@ -94,7 +94,7 @@ public class PostService {
                         m.getLng(),
                         null,                 // 주소 및 내용 생략
                         null,
-                        splitTags(m.getEmotions()),
+                        Arrays.asList(m.getEmotions().split(",")),
                         null
                 ))
                 .toList();
