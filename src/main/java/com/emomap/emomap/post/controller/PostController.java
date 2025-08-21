@@ -69,19 +69,10 @@ public class PostController {
     )
     @PostMapping(value = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CreatePostResponseDTO createByForm(
-            @RequestPart(name = "post", required = true) CreatePostFormDTO postJson,
+            @RequestPart(name = "post", required = true) CreatePostFormDTO post,
             @RequestPart(name = "images", required = false) List<MultipartFile> images
     ) {
-        CreatePostFormDTO req = new CreatePostFormDTO(
-                postJson.userId(),
-                postJson.content(),
-                postJson.lat(),
-                postJson.lng(),
-                postJson.roadAddress(),
-                postJson.emotions(),
-                images
-        );
-        return postService.createPostForm(req);
+        return postService.createPostForm(post, images);
     }
 
     static class CreatePostFormSwagger {

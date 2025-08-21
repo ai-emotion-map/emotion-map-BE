@@ -126,25 +126,24 @@ public class PostService {
         return (s == null || s.isBlank()) ? null : s;
     }
 
-    public CreatePostResponseDTO createPostForm(CreatePostFormDTO req) {
-        // 1. 감정/주소 보정
-        String emoCsv = emotionClassifier.classifyIfBlank(req.content(), req.emotions());
+    public CreatePostResponseDTO createPostForm(CreatePostFormDTO req,
+                                                List<MultipartFile> images) {
+        String content = req.content() == null ? "" : req.content().trim();
+        String emoCsv = emotionClassifier.classifyIfBlank(content, req.emotions());
         String road = (req.roadAddress() == null || req.roadAddress().isBlank())
                 ? kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null)
                 : req.roadAddress();
 
-        // 2. 파일 저장 → URL 리스트 생성
-        List<String> imageUrls = Optional.ofNullable(req.images())
+        List<String> imageUrls = Optional.ofNullable(images)
                 .orElse(List.of())
                 .stream()
-                .filter(f -> f != null && !f.isEmpty())
+                .filter(f -> f != null && !f.isEmpty() && f.getOriginalFilename() != null)
                 .map(this::saveImageOrThrow)
                 .toList();
 
-        // 3. 엔티티 저장 (DB에는 URL만 저장)
         Post p = Post.builder()
                 .userId(req.userId())
-                .content(req.content())
+                .content(content)
                 .emotions(emoCsv)
                 .lat(req.lat())
                 .lng(req.lng())
@@ -152,10 +151,9 @@ public class PostService {
                 .imageUrls(imageUrls)
                 .build();
         postRepository.save(p);
+
         return new CreatePostResponseDTO(
-                p.getId(), p.getLat(), p.getLng(), road,
-                splitTags(emoCsv),
-                imageUrls
+                p.getId(), p.getLat(), p.getLng(), road, splitTags(emoCsv), imageUrls
         );
     }
 
