@@ -64,6 +64,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/api/user/**",
                                 "/posts/**",
+                                "/uploads/**",
                                 "/h2-console"
                         ).permitAll()
                         .anyRequest().authenticated())

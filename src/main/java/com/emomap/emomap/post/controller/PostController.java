@@ -1,37 +1,27 @@
 package com.emomap.emomap.post.controller;
 
-import static org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE;
-
-import com.emomap.emomap.post.entity.Post;
+import com.emomap.emomap.post.entity.dto.request.CreatePostFormDTO;
 import com.emomap.emomap.post.entity.dto.request.CreatePostRequestDTO;
 import com.emomap.emomap.post.entity.dto.response.CreatePostResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.FeedItemDTO;
 import com.emomap.emomap.post.entity.dto.response.PostDetailResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.SearchPostResponseDTO;
-import com.emomap.emomap.post.entity.dto.request.CreatePostFormDTO;
 import com.emomap.emomap.post.service.PostService;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -48,17 +38,14 @@ public class PostController {
                     schema = @Schema(implementation = CreatePostRequestDTO.class)
             )
     )
-
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> create(@RequestBody @Valid CreatePostRequestDTO req) {
         return postService.createPost(req);
     }
 
-    private static final Path UPLOAD_DIR = Paths.get("/home/ec2-user/app/uploads");
-
     @Operation(
             summary = "게시글 생성(FormData)",
-            description = "이미지를 포함한 게시글 업로드 (multipart/form-data)",
+            description = "multipart/form-data: post(JSON 한 덩어리) + images(파일[])",
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     required = true,
                     content = @Content(
@@ -68,35 +55,30 @@ public class PostController {
             )
     )
     @PostMapping(value = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public CreatePostResponseDTO createByForm(
-            @RequestPart(name = "post", required = true) CreatePostFormDTO post,
-            @RequestPart(name = "images", required = false) List<MultipartFile> images
+    public ResponseEntity<CreatePostResponseDTO> createByForm(
+            @RequestPart("post") CreatePostFormDTO post,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
     ) {
-        return postService.createPostForm(post, images);
+        return ResponseEntity.ok(postService.createPostForm(post, images));
     }
 
     static class CreatePostFormSwagger {
         @Schema(description = "게시글 JSON", implementation = CreatePostFormDTO.class)
         public CreatePostFormDTO post;
-
         @ArraySchema(schema = @Schema(type = "string", format = "binary"))
         public List<MultipartFile> images;
     }
 
-
-    // 기존 상세 조회를 DTO로
     @GetMapping("/{id}")
     public PostDetailResponseDTO detail(@PathVariable Long id) {
         return postService.getPostDetailDto(id);
     }
 
-    // 최신 글을 DTO 페이지로
     @GetMapping("/latest")
     public Page<FeedItemDTO> latest(@RequestParam(defaultValue="0") int page,
                                     @RequestParam(defaultValue="20") int size) {
         return postService.getLatestFeed(page, size);
     }
-
 
     @Operation(summary = "검색/필터",
             description = """
@@ -120,7 +102,7 @@ public class PostController {
     }
 
     @Operation(summary = "지도 마커 조회(경량)",
-            description = "지도 범위(minLat,maxLat,minLng,maxLng) 전달 시 해당 영역 보이게인데 없으면 전체임")
+            description = "지도 범위(minLat,maxLat,minLng,maxLng) 없으면 전체")
     @GetMapping("/markers")
     public List<SearchPostResponseDTO> markers(
             @RequestParam(required = false) Double minLat,
