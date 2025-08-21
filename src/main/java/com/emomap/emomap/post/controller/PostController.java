@@ -67,54 +67,27 @@ public class PostController {
                     )
             )
     )
-    @PostMapping(path = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CreatePostResponseDTO createByForm(
-            @RequestPart("userId") Long userId,
-            @RequestPart("content") String content,
-            @RequestPart(value = "lat", required = false) Double lat,
-            @RequestPart(value = "lng", required = false) Double lng,
-            @RequestPart(value = "roadAddress", required = false) String roadAddress,
-            @RequestPart(value = "emotions", required = false) String emotions,
-            @RequestPart(value = "images", required = false) List<MultipartFile> images
+            @RequestPart(name = "post", required = true) CreatePostFormDTO postJson,
+            @RequestPart(name = "images", required = false) List<MultipartFile> images
     ) {
-        List<String> imageUrls = new ArrayList<>();
-
-        if (images != null && !images.isEmpty()) {
-            try {
-                Path uploadPath = UPLOAD_DIR;
-                if (!Files.exists(uploadPath)) {
-                    Files.createDirectories(uploadPath);
-                }
-
-                for (MultipartFile file : images) {
-                    String originalFileName = file.getOriginalFilename();
-                    String uniqueFileName = UUID.randomUUID().toString() + "_" + originalFileName;
-                    Path filePath = uploadPath.resolve(uniqueFileName); // 저장될 파일의 전체 경로
-
-                    Files.copy(file.getInputStream(), filePath);
-
-                    imageUrls.add("/uploads/" + uniqueFileName);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        CreatePostFormDTO serviceReq = new CreatePostFormDTO(
-                userId, content, lat, lng, roadAddress, emotions, imageUrls
+        CreatePostFormDTO req = new CreatePostFormDTO(
+                postJson.userId(),
+                postJson.content(),
+                postJson.lat(),
+                postJson.lng(),
+                postJson.roadAddress(),
+                postJson.emotions(),
+                images
         );
-        return postService.createPostForm(serviceReq);
+        return postService.createPostForm(req);
     }
 
     static class CreatePostFormSwagger {
-        public Long userId;
-        public String content;
-        public Double lat;
-        public Double lng;
-        public String roadAddress;
-        public String emotions;
+        @Schema(description = "게시글 JSON", implementation = CreatePostFormDTO.class)
+        public CreatePostFormDTO post;
 
-        @Schema(description = "이미지 파일 리스트")
         @ArraySchema(schema = @Schema(type = "string", format = "binary"))
         public List<MultipartFile> images;
     }

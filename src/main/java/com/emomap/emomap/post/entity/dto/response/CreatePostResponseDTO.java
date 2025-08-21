@@ -7,5 +7,6 @@ public record CreatePostResponseDTO(
         double lat,
         double lng,
         String roadAddress,
-        List<String> tags
+        List<String> tags,
+        List<String> imageUrls
 ) {}

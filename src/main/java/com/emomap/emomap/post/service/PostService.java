@@ -15,10 +15,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDate;
+import java.util.*;
 
 import java.time.ZoneId;
 import java.time.OffsetDateTime;
@@ -94,7 +97,7 @@ public class PostService {
                         m.getLng(),
                         null,                 // 주소 및 내용 생략
                         null,
-                        Arrays.asList(m.getEmotions().split(",")),
+                        splitTags(m.getEmotions()),
                         null
                 ))
                 .toList();
@@ -124,29 +127,57 @@ public class PostService {
     }
 
     public CreatePostResponseDTO createPostForm(CreatePostFormDTO req) {
-        // 1. 감정 및 주소 보정
-        String emo = emotionClassifier.classifyIfBlank(req.content(), req.emotions());
+        // 1. 감정/주소 보정
+        String emoCsv = emotionClassifier.classifyIfBlank(req.content(), req.emotions());
         String road = (req.roadAddress() == null || req.roadAddress().isBlank())
                 ? kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null)
                 : req.roadAddress();
 
-        // 2. 저장
+        // 2. 파일 저장 → URL 리스트 생성
+        List<String> imageUrls = Optional.ofNullable(req.images())
+                .orElse(List.of())
+                .stream()
+                .filter(f -> f != null && !f.isEmpty())
+                .map(this::saveImageOrThrow)
+                .toList();
+
+        // 3. 엔티티 저장 (DB에는 URL만 저장)
         Post p = Post.builder()
                 .userId(req.userId())
                 .content(req.content())
-                .emotions(emo)
+                .emotions(emoCsv)
                 .lat(req.lat())
                 .lng(req.lng())
                 .roadAddress(road)
-                .imageUrls(req.imageUrls()) // 컨트롤러에서 넘어온 imageUrls를 Post 엔티티에 저장
+                .imageUrls(imageUrls)
                 .build();
         postRepository.save(p);
-
-        // 3. 이미지 저장
-
         return new CreatePostResponseDTO(
-                p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(), splitTags(p.getEmotions())
+                p.getId(), p.getLat(), p.getLng(), road,
+                splitTags(emoCsv),
+                imageUrls
         );
+    }
+
+    // 서비스 내부 전용: 파일 저장 후 공개 URL 반환
+    private String saveImageOrThrow(MultipartFile file) {
+        try {
+            String ct = file.getContentType();
+            if (ct == null || !ct.startsWith("image/")) {
+                throw new IllegalArgumentException("이미지 파일만 업로드 가능합니다.");
+            }
+            String folder = LocalDate.now().toString();
+            Path dir = Paths.get("uploads").resolve(folder);
+            Files.createDirectories(dir);
+
+            String safeName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+            Path dest = dir.resolve(safeName);
+            file.transferTo(dest.toFile());
+
+            return "/uploads/" + folder + "/" + safeName;
+        } catch (Exception e) {
+            throw new RuntimeException("이미지 저장 실패", e);
+        }
     }
 
     public PostDetailResponseDTO getPostDetailDto(Long id) {
