@@ -15,11 +15,13 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 @RequiredArgsConstructor
 public class JwtTokenFilter extends OncePerRequestFilter {
@@ -28,6 +30,24 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     private final String secretKey;
 
     Logger logger = LoggerFactory.getLogger(JwtTokenFilter.class);
+
+    private static final AntPathMatcher PM = new AntPathMatcher();
+    private static final List<String> WHITELIST = List.of(
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            "/api/user/**",
+            "/posts/**",
+            "/uploads/**",
+            "/h2-console/**"
+    );
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
+        String uri = request.getRequestURI();
+        for (String p : WHITELIST) if (PM.match(p, uri)) return true;
+        return false;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -41,7 +61,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 return;
             }
 
-            String token = header.split(" ")[1];
+            String token = header.substring(7);
 
             try {
                 if (JwtTokenUtil.isExpired(token, secretKey)) {
@@ -62,13 +82,13 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "토큰 사용자를 찾을 수 없습니다.");
             }
 
-            UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-                    user.getEmail(), null, null);
+            UsernamePasswordAuthenticationToken authenticationToken =
+                    new UsernamePasswordAuthenticationToken(user.getEmail(), null, null);
             authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
-
             filterChain.doFilter(request, response);
+
         } catch (ResponseStatusException e) {
             logger.error("JWT 인증 실패: {}", e.getMessage());
             SecurityContextHolder.clearContext();
