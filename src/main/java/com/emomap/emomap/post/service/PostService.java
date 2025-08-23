@@ -104,7 +104,7 @@ public class PostService {
                         m.getPlaceName(),
                         m.getContent(),
                         splitTags(m.getEmotions()),
-                        null
+                        toOffset(m.getCreatedAt())
                 ))
                 .toList();
     }

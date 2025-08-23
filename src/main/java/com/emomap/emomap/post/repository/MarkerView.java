@@ -1,5 +1,7 @@
 package com.emomap.emomap.post.repository;
 
+import java.time.LocalDateTime;
+
 public interface MarkerView {
     Long getId();
     Double getLat();
@@ -8,4 +10,5 @@ public interface MarkerView {
     String getPlaceName();
     String getRoadAddress();
     String getContent();
+    LocalDateTime getCreatedAt();
 }

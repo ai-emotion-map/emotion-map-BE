@@ -68,7 +68,8 @@ SELECT
   p.emotions,
   p.place_name   AS placeName,
   p.road_address AS roadAddress,
-  p.content      AS content
+  p.content      AS content,
+  p.created_at   AS createdAt
 FROM posts p
 WHERE
   ( :minLat IS NULL OR :maxLat IS NULL OR :minLng IS NULL OR :maxLng IS NULL )
