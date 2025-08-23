@@ -61,10 +61,10 @@ public interface PostRepository extends JpaRepository<Post, Long> { // CRUD + �
 
     // 지도 마커 전용
     @Query(value = """
-    SELECT p.id, p.lat, p.lng, p.emotions
+    SELECT p.id, p.lat, p.lng, p.emotions, p.place_name
     FROM posts p
-    WHERE p.lat BETWEEN :minLat AND :maxLat
-      AND p.lng BETWEEN :minLng AND :maxLng
+    WHERE (:minLat IS NULL OR :maxLat IS NULL OR :minLng IS NULL OR :maxLng IS NULL)
+       OR (p.lat BETWEEN :minLat AND :maxLat AND p.lng BETWEEN :minLng AND :maxLng)
     """, nativeQuery = true)
     List<MarkerView> findMarkersNative(
             @Param("minLat") Double minLat,
