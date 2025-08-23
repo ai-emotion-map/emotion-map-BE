@@ -58,7 +58,7 @@ public class PostController {
         @Schema(
                 description = """
                     게시글 JSON(한글 감정 태그 허용, 이미지 없이 사용 가능):
-                    {"userId":1,"content":"내용","lat":37.6,"lng":127.03, "placeName":"스타벅스 종암점", "emotions":"우정,향수"}
+                    {"content":"내용","lat":37.6,"lng":127.03, "placeName":"스타벅스 종암점", "emotions":"우정,향수"}
                     """,
                 implementation = CreatePostFormDTO.class
         )
@@ -93,10 +93,10 @@ public class PostController {
     public Page<SearchPostResponseDTO> search(
             @Parameter(description = "키워드(내용/주소/장소명)") @RequestParam(required = false) String q,
             @Parameter(description = "감정 태그(포함 검색, 한글만)") @RequestParam(required = false) String tag,
-            @Parameter(description = "남서쪽 위도") @RequestParam(required = false) Double minLat,
-            @Parameter(description = "북동쪽 위도") @RequestParam(required = false) Double maxLat,
-            @Parameter(description = "남서쪽 경도") @RequestParam(required = false) Double minLng,
-            @Parameter(description = "북동쪽 경도") @RequestParam(required = false) Double maxLng,
+            @Parameter(description = "최소 위도") @RequestParam(required = false) Double minLat,
+            @Parameter(description = "최대 위도") @RequestParam(required = false) Double maxLat,
+            @Parameter(description = "최소 경도") @RequestParam(required = false) Double minLng,
+            @Parameter(description = "최대 경도") @RequestParam(required = false) Double maxLng,
             @Parameter(description = "페이지(0부터)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "페이지 크기(기본 20, 최대 100)") @RequestParam(defaultValue = "20") int size
     ) {

@@ -20,9 +20,6 @@ public class Post extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)  // identity 사용
     private Long id;                                     // 글 pk
 
-    @Column(name="user_id") // DB에서 이 컬럼명은 user_id로하고 Post와 User FK 연결함
-    private Long userId;
-
     @Column(nullable=false, columnDefinition="text")     // null 값 안되고 text 타입임
     private String content;
 
