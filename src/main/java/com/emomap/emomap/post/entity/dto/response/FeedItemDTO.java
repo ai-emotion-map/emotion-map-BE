@@ -8,6 +8,7 @@ public record FeedItemDTO(
         double lat,
         double lng,
         String roadAddress,
+        String placeName,
         String thumbnailUrl,     // 처음 이미지(없으면 null임)
         List<String> tags,
         OffsetDateTime createdAt

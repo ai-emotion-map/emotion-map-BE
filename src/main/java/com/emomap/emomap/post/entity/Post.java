@@ -33,6 +33,9 @@ public class Post extends BaseEntity {
 
     private String roadAddress;                          // 도로명 주소
 
+    @Column(name = "place_name")
+    private String placeName;
+
     @ElementCollection
     @CollectionTable(name = "post_images", joinColumns = @JoinColumn(name = "post_id"))
     @Column(name = "image_url")

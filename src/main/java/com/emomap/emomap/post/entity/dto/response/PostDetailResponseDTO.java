@@ -8,6 +8,7 @@ public record PostDetailResponseDTO(
         double lat,
         double lng,
         String roadAddress,
+        String placeName,
         String content,
         List<String> tags,
         List<String> imageUrls,

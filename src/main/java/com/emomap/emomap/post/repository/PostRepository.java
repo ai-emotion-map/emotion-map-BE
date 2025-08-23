@@ -17,27 +17,29 @@ public interface PostRepository extends JpaRepository<Post, Long> { // CRUD + �
             SELECT *
             FROM posts p
             WHERE
-              -- q: 내용/주소 검색(없으면 무시)
+              -- q. 내용/주소/장소명 검색(없으면 무시)
               ( :q IS NULL OR :q = '' 
                 OR p.content ILIKE CONCAT('%', :q, '%')
-                OR p.road_address ILIKE CONCAT('%', :q, '%') )
+                OR p.road_address ILIKE CONCAT('%', :q, '%')
+                OR p.place_name ILIKE CONCAT('%', :q, '%') )
               AND
-              -- tag: emotions 포함 여부(없으면 무시)
+              -- tag. emotions 포함 여부(없으면 무시)
               ( :tag IS NULL OR :tag = '' 
                 OR p.emotions ILIKE CONCAT('%', :tag, '%') )
               AND
-              -- 지도 범위(BBox): 네 값이 모두 있을 때만 적용
+              -- 지도 범위. 네 값이 모두 있을 때만 적용
               ( (:minLat IS NULL OR :maxLat IS NULL OR :minLng IS NULL OR :maxLng IS NULL)
                 OR (p.lat BETWEEN :minLat AND :maxLat AND p.lng BETWEEN :minLng AND :maxLng) )
             ORDER BY p.created_at DESC
             """,
-            countQuery = """
+                    countQuery = """
             SELECT count(*)
             FROM posts p
             WHERE
               ( :q IS NULL OR :q = '' 
                 OR p.content ILIKE CONCAT('%', :q, '%')
-                OR p.road_address ILIKE CONCAT('%', :q, '%') )
+                OR p.road_address ILIKE CONCAT('%', :q, '%')
+                OR p.place_name ILIKE CONCAT('%', :q, '%') )
               AND
               ( :tag IS NULL OR :tag = '' 
                 OR p.emotions ILIKE CONCAT('%', :tag, '%') )

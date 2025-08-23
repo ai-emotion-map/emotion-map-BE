@@ -34,6 +34,7 @@ public class PostController {
                 - 이미지가 없어도 사용 가능
                 - post.emotions는 비우면 AI가 1~3개 자동 분류
                 - post.roadAddress는 비우면 좌표로 자동 보정
+                - post.placeName은 장소 이름(예: "스타벅스 종암점")
                 - 감정 태그 수동 입력 시 한글 CSV(최대 3개)만 허용
                   허용: "가족","우정","위로/치유","외로움","설렘/사랑","향수"
 
@@ -65,7 +66,7 @@ public class PostController {
         @Schema(
                 description = """
                     게시글 JSON(한글 감정 태그 허용, 이미지 없이 사용 가능):
-                    {"userId":1,"content":"내용","lat":37.6,"lng":127.03,"emotions":"우정,향수"}
+                    {"userId":1,"content":"내용","lat":37.6,"lng":127.03, "placeName":"스타벅스 종암점", "emotions":"우정,향수"}
                     """,
                 implementation = CreatePostFormDTO.class
         )
@@ -90,7 +91,7 @@ public class PostController {
     @Operation(
             summary = "검색/필터",
             description = """
-                    - q: 키워드(내용/주소)
+                    - q: 키워드(내용/주소/장소명)
                     - tag: 감정 태그(포함 검색, 한글만) 예: 우정, 향수
                     - 지도 범위: minLat, maxLat, minLng, maxLng (네 값 모두 있을 때만 적용)
                     - 페이지네이션: page(0부터), size(기본 20, 최대 100)
@@ -98,7 +99,7 @@ public class PostController {
     )
     @GetMapping("/search")
     public Page<SearchPostResponseDTO> search(
-            @Parameter(description = "키워드(내용/주소)") @RequestParam(required = false) String q,
+            @Parameter(description = "키워드(내용/주소/장소명)") @RequestParam(required = false) String q,
             @Parameter(description = "감정 태그(포함 검색, 한글만)") @RequestParam(required = false) String tag,
             @Parameter(description = "남서쪽 위도") @RequestParam(required = false) Double minLat,
             @Parameter(description = "북동쪽 위도") @RequestParam(required = false) Double maxLat,

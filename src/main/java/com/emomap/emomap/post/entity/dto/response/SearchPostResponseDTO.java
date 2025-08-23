@@ -8,6 +8,7 @@ public record SearchPostResponseDTO(
         double lat,
         double lng,
         String roadAddress,
+        String placeName,
         String content,
         List<String> tags,
         OffsetDateTime createdAt

@@ -8,6 +8,7 @@ public record CreatePostResponseDTO(
         @Schema(example = "37.6") double lat,
         @Schema(example = "127.03") double lng,
         @Schema(example = "서울특별시 성북구 종암로23길 35") String roadAddress,
+        @Schema(example = "스타벅스 종암점") String placeName,
 
         // 리스트 전체의 예시를 문자열로
         @Schema(

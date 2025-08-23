@@ -60,6 +60,7 @@ public class PostService {
                 .lat(req.lat())
                 .lng(req.lng())
                 .roadAddress(road)
+                .placeName(req.placeName())
                 .imageUrls(imageUrls)
                 .build();
 
@@ -67,7 +68,7 @@ public class PostService {
 
         // 5. 응답
         return new CreatePostResponseDTO(
-                p.getId(), p.getLat(), p.getLng(), road, splitTags(p.getEmotions()), imageUrls
+                p.getId(), p.getLat(), p.getLng(), road, p.getPlaceName(), splitTags(p.getEmotions()), imageUrls
         );
     }
 
@@ -97,7 +98,7 @@ public class PostService {
         return raw.stream()
                 .map(m -> new SearchPostResponseDTO(
                         m.getId(), m.getLat(), m.getLng(),
-                        null, null, splitTags(m.getEmotions()), null
+                        null, null, null, splitTags(m.getEmotions()), null
                 ))
                 .toList();
     }
@@ -105,7 +106,7 @@ public class PostService {
     private SearchPostResponseDTO toDto(Post p) {
         return new SearchPostResponseDTO(
                 p.getId(), p.getLat(), p.getLng(),
-                p.getRoadAddress(), p.getContent(),
+                p.getRoadAddress(), p.getPlaceName(), p.getContent(),
                 splitTags(p.getEmotions()), toOffset(p.getCreatedAt())
         );
     }
@@ -131,7 +132,7 @@ public class PostService {
     public PostDetailResponseDTO getPostDetailDto(Long id) {
         Post p = postRepository.findById(id).orElseThrow();
         return new PostDetailResponseDTO(
-                p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(),
+                p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(), p.getPlaceName(),
                 p.getContent(), splitTags(p.getEmotions()), p.getImageUrls(), toOffset(p.getCreatedAt())
         );
     }
@@ -142,7 +143,7 @@ public class PostService {
             String thumb = (p.getImageUrls() != null && !p.getImageUrls().isEmpty())
                     ? p.getImageUrls().get(0) : null;
             return new FeedItemDTO(
-                    p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(),
+                    p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(), p.getPlaceName(),
                     thumb, splitTags(p.getEmotions()), toOffset(p.getCreatedAt())
             );
         });
