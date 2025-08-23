@@ -54,7 +54,7 @@ public class PostService {
 
         // 4. 저장
         Post p = Post.builder()
-                .userId(req.userId())
+                .userId(null)
                 .content(content)
                 .emotions(emoCsv)
                 .lat(req.lat())

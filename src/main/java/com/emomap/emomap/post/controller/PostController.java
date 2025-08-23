@@ -28,9 +28,9 @@ public class PostController {
     private final PostService postService;
 
     @Operation(
-            summary = "게시글 생성 (FormData 하나로 통합)",
+            summary = "게시글 생성",
             description = """
-                multipart/form-data: post(JSON 한 덩어리, 'post' 키) + images(파일[] 선택)
+                multipart/form-data: post(JSON 'post') + images(파일[] 선택)
                 - 이미지가 없어도 사용 가능
                 - post.emotions는 비우면 AI가 1~3개 자동 분류
                 - post.roadAddress는 비우면 좌표로 자동 보정
