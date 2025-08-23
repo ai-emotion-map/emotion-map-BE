@@ -143,10 +143,6 @@ public class PostService {
             String thumb = (p.getImageUrls() != null && !p.getImageUrls().isEmpty())
                     ? p.getImageUrls().get(0) : null;
 
-            String preview = (p.getContent() != null && !p.getContent().isBlank())
-                    ? p.getContent().substring(0, Math.min(50, p.getContent().length()))
-                    : "";
-
             return new FeedItemDTO(
                     p.getId(),
                     p.getLat(),
@@ -155,7 +151,7 @@ public class PostService {
                     p.getPlaceName(),
                     thumb,
                     splitTags(p.getEmotions()),
-                    preview,
+                    p.getContent(),
                     toOffset(p.getCreatedAt())
             );
         });
