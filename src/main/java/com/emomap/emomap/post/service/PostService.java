@@ -142,9 +142,21 @@ public class PostService {
         return posts.map(p -> {
             String thumb = (p.getImageUrls() != null && !p.getImageUrls().isEmpty())
                     ? p.getImageUrls().get(0) : null;
+
+            String preview = (p.getContent() != null && !p.getContent().isBlank())
+                    ? p.getContent().substring(0, Math.min(50, p.getContent().length()))
+                    : "";
+
             return new FeedItemDTO(
-                    p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(), p.getPlaceName(),
-                    thumb, splitTags(p.getEmotions()), toOffset(p.getCreatedAt())
+                    p.getId(),
+                    p.getLat(),
+                    p.getLng(),
+                    p.getRoadAddress(),
+                    p.getPlaceName(),
+                    thumb,
+                    splitTags(p.getEmotions()),
+                    preview,
+                    toOffset(p.getCreatedAt())
             );
         });
     }

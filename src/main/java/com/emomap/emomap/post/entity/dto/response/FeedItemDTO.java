@@ -11,5 +11,6 @@ public record FeedItemDTO(
         String placeName,
         String thumbnailUrl,     // 처음 이미지(없으면 null임)
         List<String> tags,
+        String contentPreview,
         OffsetDateTime createdAt
 ) {}
