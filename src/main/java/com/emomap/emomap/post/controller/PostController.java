@@ -30,7 +30,32 @@ public class PostController {
 
     private final PostService postService;
 
-    @Operation(summary = "게시글 생성(JSON)")
+    @Operation(
+            summary = "게시글 생성(JSON)",
+            description = """
+            - emotions: 비우면 서버가 AI로 1~3개 자동 분류.
+            - roadAddress: 비우면 서버가 좌표(lat,lng)로 도로명 주소를 자동 보정.
+            - 프론트가 태그를 직접 보낼 때는 한글 CSV(최대 3개)만 허용.
+              허용 태그: "가족","우정","위로/치유","외로움","설렘/사랑","향수"
+
+            요청 예시(자동 분류/보정, 둘 다 비움):
+            {
+              "userId": 1,
+              "content": "오늘 기분이 복잡했어...",
+              "lat": 37.6,
+              "lng": 127.03
+            }
+
+            요청 예시(태그만 직접 보냄):
+            {
+              "userId": 1,
+              "content": "친구랑 놀았어",
+              "lat": 37.6,
+              "lng": 127.03,
+              "emotions": "우정,향수"
+            }
+            """
+    )
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,
             content = @Content(
@@ -45,13 +70,25 @@ public class PostController {
 
     @Operation(
             summary = "게시글 생성(FormData)",
-            description = "multipart/form-data: post(JSON 한 덩어리) + images(파일[])",
-            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    required = true,
-                    content = @Content(
-                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                            schema = @Schema(implementation = CreatePostFormSwagger.class)
-                    )
+            description = """
+                multipart/form-data: post(JSON 한 덩어리, 'post' 키) + images(파일[])
+                - post.emotions: 비우면 AI 자동 분류
+                - post.roadAddress: 비우면 좌표로 자동 보정
+                - 프론트가 직접 보낼 때는 한글 CSV(최대 3개)만 허용
+                  허용: "가족","우정","위로/치유","외로움","설렘/사랑","향수"
+
+                post 예시(자동):
+                {"userId":1,"content":"내용","lat":37.6,"lng":127.03}
+
+                post 예시(수동):
+                {"userId":1,"content":"내용","lat":37.6,"lng":127.03,"emotions":"우정,향수"}
+                """
+    )
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content = @Content(
+                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    schema = @Schema(implementation = CreatePostFormSwagger.class)
             )
     )
     @PostMapping(value = "/form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -63,8 +100,16 @@ public class PostController {
     }
 
     static class CreatePostFormSwagger {
-        @Schema(description = "게시글 JSON", implementation = CreatePostFormDTO.class)
+        @Schema(
+                description = """
+                    게시글 JSON(한글 감정 태그 사용 예시):
+                    {"userId":1,"content":"내용","lat":37.6,"lng":127.03,
+                     "roadAddress":"서울...","emotions":"우정,향수"}
+                    """,
+                implementation = CreatePostFormDTO.class
+        )
         public CreatePostFormDTO post;
+
         @ArraySchema(schema = @Schema(type = "string", format = "binary"))
         public List<MultipartFile> images;
     }
@@ -74,23 +119,29 @@ public class PostController {
         return postService.getPostDetailDto(id);
     }
 
+    @Operation(
+            summary = "최신 피드",
+            description = "가장 최근 게시글 페이지네이션"
+    )
     @GetMapping("/latest")
     public Page<FeedItemDTO> latest(@RequestParam(defaultValue="0") int page,
                                     @RequestParam(defaultValue="20") int size) {
         return postService.getLatestFeed(page, size);
     }
 
-    @Operation(summary = "검색/필터",
+    @Operation(
+            summary = "검색/필터",
             description = """
                     - q: 키워드(내용/주소)
-                    - tag: 감정 태그(포함 검색)
-                    - 지도 범위: minLat, maxLat, minLng, maxLng (네 값이 모두 있을 때만 적용)
+                    - tag: 감정 태그(포함 검색, 한글만) 예: 우정, 향수
+                    - 지도 범위: minLat, maxLat, minLng, maxLng (네 값 모두 있을 때만 적용)
                     - 페이지네이션: page(0부터), size(기본 20, 최대 100)
-                    """)
+                    """
+    )
     @GetMapping("/search")
     public Page<SearchPostResponseDTO> search(
             @Parameter(description = "키워드(내용/주소)") @RequestParam(required = false) String q,
-            @Parameter(description = "감정 태그(포함 검색)") @RequestParam(required = false) String tag,
+            @Parameter(description = "감정 태그(포함 검색, 한글만)") @RequestParam(required = false) String tag,
             @Parameter(description = "남서쪽 위도") @RequestParam(required = false) Double minLat,
             @Parameter(description = "북동쪽 위도") @RequestParam(required = false) Double maxLat,
             @Parameter(description = "남서쪽 경도") @RequestParam(required = false) Double minLng,
@@ -101,8 +152,7 @@ public class PostController {
         return postService.search(q, tag, minLat, maxLat, minLng, maxLng, page, size);
     }
 
-    @Operation(summary = "지도 마커 조회(경량)",
-            description = "지도 범위(minLat,maxLat,minLng,maxLng) 없으면 전체")
+    @Operation(summary = "지도 마커 조회(경량)", description = "지도 범위(minLat,maxLat,minLng,maxLng) 없으면 전체")
     @GetMapping("/markers")
     public List<SearchPostResponseDTO> markers(
             @RequestParam(required = false) Double minLat,

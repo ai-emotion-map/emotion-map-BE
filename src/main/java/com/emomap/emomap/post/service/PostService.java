@@ -9,7 +9,6 @@ import com.emomap.emomap.post.entity.dto.response.PostDetailResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.SearchPostResponseDTO;
 import com.emomap.emomap.post.repository.MarkerView;
 import com.emomap.emomap.post.repository.PostRepository;
-import com.emomap.emomap.post.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -28,20 +27,30 @@ public class PostService {
     private final PostRepository postRepository;
     private final Emotion emotionClassifier;
     private final Kakao kakaoAPI;
-
     private final StorageService storageService;
 
-    // JSON 생성
+    // 한글 허용 세트(검증/필터링)
+    private static final Set<String> KO_ALLOWED = Set.of(
+            "가족","우정","위로/치유","외로움","설렘/사랑","향수"
+    );
+
+    /* -------------------- 생성(JSON) -------------------- */
     public Map<String, Object> createPost(CreatePostRequestDTO req) {
-        String emo = emotionClassifier.classifyIfBlank(req.content(), req.emotions());
+        String content = req.content() == null ? "" : req.content().trim();
+
+        // 1. 감정 태그가 비어있으면 AI, 있으면 한글 CSV로 정규화
+        String emoCsv = emotionClassifier.classifyIfBlank(content, req.emotions());
+
+        // 2. 도로명 주소 보정
         String road = (req.roadAddress() == null || req.roadAddress().isBlank())
                 ? kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null)
                 : req.roadAddress();
 
+        // 3. 엔티티 저장(감정은 한글 CSV로 저장)
         Post p = Post.builder()
                 .userId(req.userId())
-                .content(req.content())
-                .emotions(emo)
+                .content(content)
+                .emotions(emoCsv)
                 .lat(req.lat())
                 .lng(req.lng())
                 .roadAddress(road)
@@ -51,15 +60,19 @@ public class PostService {
         return Map.of("id", p.getId());
     }
 
-    // multipart/form-data 생성
+    /* -------------------- 생성(FormData) -------------------- */
     public CreatePostResponseDTO createPostForm(CreatePostFormDTO req, List<MultipartFile> images) {
         String content = req.content() == null ? "" : req.content().trim();
+
+        // 1. 감정 태그 정규화(항상 한글 CSV)
         String emoCsv  = emotionClassifier.classifyIfBlank(content, req.emotions());
+
+        // 2. 도로명 주소 보정
         String road    = (req.roadAddress() == null || req.roadAddress().isBlank())
                 ? kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null)
                 : req.roadAddress();
 
-        // 파일 저장 → URL 리스트
+        // 3. 파일 저장은 URL 리스트로
         List<String> imageUrls = Optional.ofNullable(images)
                 .orElse(List.of())
                 .stream()
@@ -67,6 +80,7 @@ public class PostService {
                 .map(storageService::storeFile)
                 .toList();
 
+        // 4. 저장
         Post p = Post.builder()
                 .userId(req.userId())
                 .content(content)
@@ -79,10 +93,13 @@ public class PostService {
 
         postRepository.save(p);
 
+        // 5. 응답(한글 배열)
         return new CreatePostResponseDTO(
                 p.getId(), p.getLat(), p.getLng(), road, splitTags(emoCsv), imageUrls
         );
     }
+
+    /* -------------------- 조회/검색/피드 -------------------- */
 
     public Post getPostDetail(Long id) { return postRepository.findById(id).orElseThrow(); }
 
@@ -121,15 +138,20 @@ public class PostService {
         );
     }
 
+    /* -------------------- 유틸 -------------------- */
+
+    // "우정,향수"를 ["우정","향수"] 이렇게 바꿈. (허용값만, 중복 제거, 최대 3개)
     private List<String> splitTags(String emotions) {
         if (emotions == null || emotions.isBlank()) return List.of();
         return Arrays.stream(emotions.split("[,\\s]+"))
-                .filter(s -> !s.isBlank()).toList();
+                .map(String::trim)
+                .filter(KO_ALLOWED::contains)
+                .distinct()
+                .limit(3)
+                .toList();
     }
 
-    private String emptyToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
-    }
+    private String emptyToNull(String s) { return (s == null || s.isBlank()) ? null : s; }
 
     private OffsetDateTime toOffset(java.time.LocalDateTime ldt) {
         return (ldt == null) ? null : ldt.atZone(KST).toOffsetDateTime();
@@ -137,10 +159,9 @@ public class PostService {
 
     public PostDetailResponseDTO getPostDetailDto(Long id) {
         Post p = postRepository.findById(id).orElseThrow();
-        List<String> urls = p.getImageUrls();
         return new PostDetailResponseDTO(
                 p.getId(), p.getLat(), p.getLng(), p.getRoadAddress(),
-                p.getContent(), splitTags(p.getEmotions()), urls, toOffset(p.getCreatedAt())
+                p.getContent(), splitTags(p.getEmotions()), p.getImageUrls(), toOffset(p.getCreatedAt())
         );
     }
 
