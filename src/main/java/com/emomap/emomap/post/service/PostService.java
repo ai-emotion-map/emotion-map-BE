@@ -97,8 +97,14 @@ public class PostService {
         List<MarkerView> raw = postRepository.findMarkersNative(minLat, maxLat, minLng, maxLng);
         return raw.stream()
                 .map(m -> new SearchPostResponseDTO(
-                        m.getId(), m.getLat(), m.getLng(),
-                        null, null, null, splitTags(m.getEmotions()), null
+                        m.getId(),
+                        m.getLat(),
+                        m.getLng(),
+                        m.getRoadAddress(),
+                        m.getPlaceName(),
+                        m.getContent(),
+                        splitTags(m.getEmotions()),
+                        null
                 ))
                 .toList();
     }
