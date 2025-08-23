@@ -56,11 +56,11 @@ public class PostController {
 
     static class CreatePostFormSwagger {
         @Schema(
-                description = "게시글 JSON",
-                example = """
-                {"userId":1,"content":"내용","lat":37.6,"lng":127.03,
-                 "placeName":"스타벅스 종암점","emotions":"우정,향수"}
-                """
+                description = """
+                    게시글 JSON(한글 감정 태그 허용, 이미지 없이 사용 가능):
+                    {"userId":1,"content":"내용","lat":37.6,"lng":127.03, "placeName":"스타벅스 종암점", "emotions":"우정,향수"}
+                    """,
+                implementation = CreatePostFormDTO.class
         )
         public CreatePostFormDTO post;
 
