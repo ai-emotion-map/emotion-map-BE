@@ -37,7 +37,14 @@ public class PostService {
         String content = req.content() == null ? "" : req.content().trim();
 
         // 1. 감정 태그 정규화(항상 한글 CSV)
-        String emoCsv  = emotionClassifier.classifyIfBlank(content, req.emotions());
+        String emoCsv;
+        try {
+            emoCsv = emotionClassifier.classifyIfBlank(content, req.emotions());
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PostService.class)
+                    .warn("Emotion classify failed -> fallback empty. cause={}", e.toString());
+            emoCsv = (req.emotions() == null) ? "" : req.emotions(); // 실패 시 비우거나 전달값 그대로
+        }
 
         // 2. 도로명 주소 보정
         String road    = (req.roadAddress() == null || req.roadAddress().isBlank())
