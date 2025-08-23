@@ -2,7 +2,6 @@ package com.emomap.emomap.post.service;
 
 import com.emomap.emomap.post.entity.Post;
 import com.emomap.emomap.post.entity.dto.request.CreatePostFormDTO;
-import com.emomap.emomap.post.entity.dto.request.CreatePostRequestDTO;
 import com.emomap.emomap.post.entity.dto.response.CreatePostResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.FeedItemDTO;
 import com.emomap.emomap.post.entity.dto.response.PostDetailResponseDTO;
@@ -29,38 +28,11 @@ public class PostService {
     private final Kakao kakaoAPI;
     private final StorageService storageService;
 
-    // 한글 허용 세트(검증/필터링)
     private static final Set<String> KO_ALLOWED = Set.of(
             "가족","우정","위로/치유","외로움","설렘/사랑","향수"
     );
 
-    /* -------------------- 생성(JSON) -------------------- */
-    public Map<String, Object> createPost(CreatePostRequestDTO req) {
-        String content = req.content() == null ? "" : req.content().trim();
-
-        // 1. 감정 태그가 비어있으면 AI, 있으면 한글 CSV로 정규화
-        String emoCsv = emotionClassifier.classifyIfBlank(content, req.emotions());
-
-        // 2. 도로명 주소 보정
-        String road = (req.roadAddress() == null || req.roadAddress().isBlank())
-                ? kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null)
-                : req.roadAddress();
-
-        // 3. 엔티티 저장(감정은 한글 CSV로 저장)
-        Post p = Post.builder()
-                .userId(req.userId())
-                .content(content)
-                .emotions(emoCsv)
-                .lat(req.lat())
-                .lng(req.lng())
-                .roadAddress(road)
-                .build();
-
-        postRepository.save(p);
-        return Map.of("id", p.getId());
-    }
-
-    /* -------------------- 생성(FormData) -------------------- */
+    /* ------------ 생성(FormData) ------------ */
     public CreatePostResponseDTO createPostForm(CreatePostFormDTO req, List<MultipartFile> images) {
         String content = req.content() == null ? "" : req.content().trim();
 
@@ -93,9 +65,9 @@ public class PostService {
 
         postRepository.save(p);
 
-        // 5. 응답(한글 배열)
+        // 5. 응답
         return new CreatePostResponseDTO(
-                p.getId(), p.getLat(), p.getLng(), road, splitTags(emoCsv), imageUrls
+                p.getId(), p.getLat(), p.getLng(), road, splitTags(p.getEmotions()), imageUrls
         );
     }
 
@@ -138,9 +110,8 @@ public class PostService {
         );
     }
 
-    /* -------------------- 유틸 -------------------- */
+    /* ------------------------ 유틸 ------------------------ */
 
-    // "우정,향수"를 ["우정","향수"] 이렇게 바꿈. (허용값만, 중복 제거, 최대 3개)
     private List<String> splitTags(String emotions) {
         if (emotions == null || emotions.isBlank()) return List.of();
         return Arrays.stream(emotions.split("[,\\s]+"))

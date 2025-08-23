@@ -1,7 +1,6 @@
 package com.emomap.emomap.post.controller;
 
 import com.emomap.emomap.post.entity.dto.request.CreatePostFormDTO;
-import com.emomap.emomap.post.entity.dto.request.CreatePostRequestDTO;
 import com.emomap.emomap.post.entity.dto.response.CreatePostResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.FeedItemDTO;
 import com.emomap.emomap.post.entity.dto.response.PostDetailResponseDTO;
@@ -12,7 +11,6 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
@@ -21,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -31,57 +28,22 @@ public class PostController {
     private final PostService postService;
 
     @Operation(
-            summary = "게시글 생성(JSON)",
+            summary = "게시글 생성 (FormData 하나로 통합)",
             description = """
-            - emotions: 비우면 서버가 AI로 1~3개 자동 분류.
-            - roadAddress: 비우면 서버가 좌표(lat,lng)로 도로명 주소를 자동 보정.
-            - 프론트가 태그를 직접 보낼 때는 한글 CSV(최대 3개)만 허용.
-              허용 태그: "가족","우정","위로/치유","외로움","설렘/사랑","향수"
-
-            요청 예시(자동 분류/보정, 둘 다 비움):
-            {
-              "userId": 1,
-              "content": "오늘 기분이 복잡했어...",
-              "lat": 37.6,
-              "lng": 127.03
-            }
-
-            요청 예시(태그만 직접 보냄):
-            {
-              "userId": 1,
-              "content": "친구랑 놀았어",
-              "lat": 37.6,
-              "lng": 127.03,
-              "emotions": "우정,향수"
-            }
-            """
-    )
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            required = true,
-            content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = CreatePostRequestDTO.class)
-            )
-    )
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, Object> create(@RequestBody @Valid CreatePostRequestDTO req) {
-        return postService.createPost(req);
-    }
-
-    @Operation(
-            summary = "게시글 생성(FormData)",
-            description = """
-                multipart/form-data: post(JSON 한 덩어리, 'post' 키) + images(파일[])
-                - post.emotions: 비우면 AI 자동 분류
-                - post.roadAddress: 비우면 좌표로 자동 보정
-                - 프론트가 직접 보낼 때는 한글 CSV(최대 3개)만 허용
+                multipart/form-data: post(JSON 한 덩어리, 'post' 키) + images(파일[] 선택)
+                - 이미지가 없어도 사용 가능
+                - post.emotions는 비우면 AI가 1~3개 자동 분류
+                - post.roadAddress는 비우면 좌표로 자동 보정
+                - 감정 태그 수동 입력 시 한글 CSV(최대 3개)만 허용
                   허용: "가족","우정","위로/치유","외로움","설렘/사랑","향수"
 
-                post 예시(자동):
-                {"userId":1,"content":"내용","lat":37.6,"lng":127.03}
+                예시(이미지 없이 자동 분류):
+                post={"userId":1,"content":"내용","lat":37.6,"lng":127.03}
 
-                post 예시(수동):
-                {"userId":1,"content":"내용","lat":37.6,"lng":127.03,"emotions":"우정,향수"}
+                예시(이미지 2장, 태그 수동):
+                post={"userId":1,"content":"내용","lat":37.6,"lng":127.03,"emotions":"우정,향수"}
+                images=@a.jpg
+                images=@b.jpg
                 """
     )
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
@@ -102,9 +64,8 @@ public class PostController {
     static class CreatePostFormSwagger {
         @Schema(
                 description = """
-                    게시글 JSON(한글 감정 태그 사용 예시):
-                    {"userId":1,"content":"내용","lat":37.6,"lng":127.03,
-                     "roadAddress":"서울...","emotions":"우정,향수"}
+                    게시글 JSON(한글 감정 태그 허용, 이미지 없이 사용 가능):
+                    {"userId":1,"content":"내용","lat":37.6,"lng":127.03,"emotions":"우정,향수"}
                     """,
                 implementation = CreatePostFormDTO.class
         )
@@ -119,10 +80,7 @@ public class PostController {
         return postService.getPostDetailDto(id);
     }
 
-    @Operation(
-            summary = "최신 피드",
-            description = "가장 최근 게시글 페이지네이션"
-    )
+    @Operation(summary = "최신 피드", description = "가장 최근 게시글 페이지네이션")
     @GetMapping("/latest")
     public Page<FeedItemDTO> latest(@RequestParam(defaultValue="0") int page,
                                     @RequestParam(defaultValue="20") int size) {
