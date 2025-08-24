@@ -8,9 +8,7 @@ public record CourseStopDTO(
         String roadAddress,
         double lat,
         double lng,
-        List<String> tags,   // ["우정","향수"] 등
-        String thumbnailUrl, // 첫 이미지
-        String content,             // 설명 (카카오 정보 요약)
-        String kakaoUrl,            // 카카오 장소 상세 링크
-        double distanceFromPrevKm   // 이전 stop에서 거리. 첫 stop=0
+        List<String> tags,      // ["우정"] 등
+        String content,         // 카카오 정보 요약(카테고리/전화/링크)
+        String kakaoUrl
 ) {}

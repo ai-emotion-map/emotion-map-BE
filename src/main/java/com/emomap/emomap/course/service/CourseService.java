@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,13 +20,11 @@ public class CourseService {
 
     private final KakaoPlaceClient kakao;
 
-    /* ===== 고정값 ===== */
     private static final String AREA_DEFAULT = "성북구";
     private static final int COUNT_FIXED = 3;
     // 성북구 대략 bbox
     private static final Rect SB_RECT = new Rect(127.005, 37.586, 127.058, 37.634);
 
-    /* ===== 감정/카테고리 ===== */
     private enum Kind { WALK, VIEW, CAFE, SHOP, FOOD, PUB, ACTIVITY }
 
     private static final Set<String> EMOTIONS_KO = Set.of(
@@ -42,7 +41,7 @@ public class CourseService {
             Map.entry("anger","화남/분노")
     );
 
-    // 감정별 시퀀스(OR 그룹)
+    // 감정별 코스 시퀀스(각 단계는 OR 그룹)
     private static final Map<String, List<List<Kind>>> EMOTION_SEQUENCE = Map.of(
             "우정", List.of(
                     List.of(Kind.WALK, Kind.ACTIVITY),
@@ -86,19 +85,60 @@ public class CourseService {
             )
     );
 
+    private static final Map<String, List<String>> LAST_RESULT_BY_EMOTION = new ConcurrentHashMap<>();
+
+    private static final int TOP_K_NEAR = 5;
+
+
     public CourseResponseDTO recommend(CourseRequestDTO req) {
         String emotion = normalizeEmotion(req.emotion());
 
-        // 1. Kakao에서 Kind별 후보 수집
         Map<Kind, List<PlaceLite>> pools = fetchPoolsFromKakao();
-
-        // 후보 아무 것도 없으면 빈 응답
         int totalCount = pools.values().stream().mapToInt(List::size).sum();
         if (totalCount == 0) {
             return new CourseResponseDTO(emotion, AREA_DEFAULT, 0, 0.0, 0, List.of(), List.of());
         }
 
-        // 2. 감정 시퀀스로 3곳 선택
+        // 코스 선택(랜덤성 + 직전 결과 회피)
+        List<PlaceLite> picked = pickCourseWithRandomness(emotion, pools);
+
+        // 응답 매핑
+        List<double[]> polyline = new ArrayList<>();
+        List<CourseStopDTO> stops = new ArrayList<>();
+        double totalKm = 0.0;
+
+        for (int i = 0; i < picked.size(); i++) {
+            PlaceLite p = picked.get(i);
+            polyline.add(new double[]{p.getLat(), p.getLng()});
+
+            // 구간 거리(총 거리 계산에만 사용)
+            if (i > 0) {
+                double segKm = round1(haversineKm(
+                        picked.get(i - 1).getLat(), picked.get(i - 1).getLng(),
+                        p.getLat(), p.getLng()
+                ));
+                totalKm += segKm;
+            }
+
+            String content = buildContentSummary(p);
+
+            stops.add(new CourseStopDTO(
+                    p.getId(),
+                    p.getName(),
+                    p.getRoadAddress(),
+                    p.getLat(),
+                    p.getLng(),
+                    List.of(emotion),
+                    content,
+                    p.getKakaoUrl()
+            ));
+        }
+
+        int walkMin = (int)Math.round(totalKm / 4.0 * 60.0);
+        return new CourseResponseDTO(emotion, AREA_DEFAULT, stops.size(), round1(totalKm), walkMin, polyline, stops);
+    }
+
+    private List<PlaceLite> pickCourseWithRandomness(String emotion, Map<Kind, List<PlaceLite>> pools) {
         List<PlaceLite> picked = new ArrayList<>();
         Set<String> used = new HashSet<>();
 
@@ -114,8 +154,10 @@ public class CourseService {
                 )
         );
 
+        Random rnd = new Random(System.nanoTime());
+
         for (List<Kind> group : seq) {
-            PlaceLite p = pickNearestFromGroup(group, pools, curLat, curLng, used);
+            PlaceLite p = pickRandomFromTopK(group, pools, curLat, curLng, used, rnd);
             if (p != null) {
                 picked.add(p); used.add(p.getId());
                 curLat = p.getLat(); curLng = p.getLng();
@@ -123,80 +165,87 @@ public class CourseService {
             if (picked.size() >= COUNT_FIXED) break;
         }
 
-        // 부족하면 전체에서 가까운 순으로 채움
+        // 부족분은 전체에서 근접 TOP_K_NEAR 중 랜덤으로 채움
         if (picked.size() < COUNT_FIXED) {
+
             List<PlaceLite> rest = pools.values().stream().flatMap(List::stream)
                     .filter(pl -> !used.contains(pl.getId()))
                     .toList();
             while (picked.size() < COUNT_FIXED && !rest.isEmpty()) {
-                int idx = nearestIndex(rest, curLat, curLng);
-                PlaceLite p = rest.get(idx);
+                final double refLat = curLat;
+                final double refLng = curLng;
+
+                rest = rest.stream()
+                        .sorted(Comparator.comparingDouble(pl ->
+                                haversineKm(pl.getLat(), pl.getLng(), refLat, refLng))) // ← refLat/refLng 사용
+                        .limit(TOP_K_NEAR)
+                        .collect(Collectors.toList());
+
+                PlaceLite p = rest.get(rnd.nextInt(rest.size()));
                 picked.add(p); used.add(p.getId());
-                curLat = p.getLat(); curLng = p.getLng();
-                rest = rest.stream().filter(pl -> !used.contains(pl.getId())).toList();
+
+                curLat = p.getLat();
+                curLng = p.getLng();
+
+                rest = pools.values().stream().flatMap(List::stream)
+                        .filter(pl -> !used.contains(pl.getId()))
+                        .toList();
             }
         }
 
-        // 3. 응답 매핑 content는 Kakao 정보로 간단하게 요약
-        List<double[]> polyline = new ArrayList<>();
-        List<CourseStopDTO> stops = new ArrayList<>();
-        double totalKm = 0.0;
-
-        for (int i = 0; i < picked.size(); i++) {
-            PlaceLite p = picked.get(i);
-            polyline.add(new double[]{p.getLat(), p.getLng()});
-
-            double d = (i == 0) ? 0.0 : haversineKm(
-                    picked.get(i - 1).getLat(), picked.get(i - 1).getLng(),
-                    p.getLat(), p.getLng()
-            );
-            totalKm += d;
-
-            String content = buildContentSummary(p);
-
-            stops.add(new CourseStopDTO(
-                    p.getId(),                  // 카카오 place id
-                    p.getName(),
-                    p.getRoadAddress(),
-                    p.getLat(),
-                    p.getLng(),
-                    List.of(emotion),           // 태그: 요청 감정 1개
-                    null,                       // thumbnailUrl (없음)
-                    content,                    // 카카오 요약
-                    p.getKakaoUrl(),
-                    round1(d)
-            ));
+        // 직전과 동일 조합이면 마지막 하나 교체 시도
+        List<String> ids = picked.stream().map(PlaceLite::getId).sorted().toList();
+        List<String> last = LAST_RESULT_BY_EMOTION.getOrDefault(emotion, List.of());
+        if (picked.size() == COUNT_FIXED && ids.equals(last)) {
+            replaceLastWithDifferent(picked, pools, rnd);
         }
+        LAST_RESULT_BY_EMOTION.put(emotion, picked.stream().map(PlaceLite::getId).sorted().toList());
 
-        int walkMin = (int)Math.round(totalKm / 4.0 * 60.0);
-        return new CourseResponseDTO(emotion, AREA_DEFAULT, stops.size(), round1(totalKm), walkMin, polyline, stops);
+        return picked;
     }
 
-    /* ===== Kakao를 풀로 구성 ===== */
+    private PlaceLite pickRandomFromTopK(List<Kind> group, Map<Kind, List<PlaceLite>> pools,
+                                         double lat, double lng, Set<String> used, Random rnd) {
+        List<PlaceLite> candidates = new ArrayList<>();
+        for (Kind k : group) {
+            for (PlaceLite p : pools.getOrDefault(k, List.of())) {
+                if (!used.contains(p.getId())) candidates.add(p);
+            }
+        }
+        if (candidates.isEmpty()) return null;
+
+        candidates.sort(Comparator.comparingDouble(p -> haversineKm(lat, lng, p.getLat(), p.getLng())));
+        int limit = Math.min(TOP_K_NEAR, candidates.size());
+        return candidates.get(rnd.nextInt(limit));
+    }
+
+    private void replaceLastWithDifferent(List<PlaceLite> picked, Map<Kind, List<PlaceLite>> pools, Random rnd) {
+        Set<String> used = picked.stream().map(PlaceLite::getId).collect(Collectors.toSet());
+        List<PlaceLite> all = pools.values().stream().flatMap(List::stream)
+                .filter(p -> !used.contains(p.getId()))
+                .toList();
+        if (!all.isEmpty()) {
+            picked.set(picked.size() - 1, all.get(rnd.nextInt(all.size())));
+        }
+    }
+
+    /* ===== Kakao 후보 수집 ===== */
 
     private Map<Kind, List<PlaceLite>> fetchPoolsFromKakao() {
         Map<Kind, List<PlaceLite>> map = new EnumMap<>(Kind.class);
         for (Kind k : Kind.values()) map.put(k, new ArrayList<>());
 
-        // 카테고리 기반
-        // 카페
-        map.get(Kind.CAFE).addAll(toLite(
-                kakao.searchCategoryInRect("CE7", SB_RECT, 15, 3)
-        ));
-        // 음식점
-        map.get(Kind.FOOD).addAll(toLite(
-                kakao.searchCategoryInRect("FD6", SB_RECT, 15, 3)
-        ));
-        // 주점
-        map.get(Kind.PUB).addAll(toLite(
-                kakao.searchCategoryInRect("OL7", SB_RECT, 15, 2)
-        ));
-        // 관광/전시/문화는 VIEW/WALK/ACTIVITY 후보 일부를 커버 함
-        List<KakaoPlaceDoc> culture = new ArrayList<>();
-        culture.addAll(kakao.searchCategoryInRect("AT4", SB_RECT, 15, 2)); // 관광명소
-        culture.addAll(kakao.searchCategoryInRect("CT1", SB_RECT, 15, 2)); // 문화시설
+        // 카테고리
+        map.get(Kind.CAFE).addAll(toLite(kakao.searchCategoryInRect("CE7", SB_RECT, 15, 3)));
+        map.get(Kind.FOOD).addAll(toLite(kakao.searchCategoryInRect("FD6", SB_RECT, 15, 3)));
+        map.get(Kind.PUB ).addAll(toLite(kakao.searchCategoryInRect("OL7", SB_RECT, 15, 2)));
 
-        // 키워드 기반 보강
+        // 관광/문화
+        List<KakaoPlaceDoc> culture = new ArrayList<>();
+        culture.addAll(kakao.searchCategoryInRect("AT4", SB_RECT, 15, 2));
+        culture.addAll(kakao.searchCategoryInRect("CT1", SB_RECT, 15, 2));
+
+        // 키워드: Walk/View/Shop/Activity
         List<KakaoPlaceDoc> walkKw = new ArrayList<>();
         walkKw.addAll(kakao.searchKeywordInRect("산책로", SB_RECT, 15, 2));
         walkKw.addAll(kakao.searchKeywordInRect("성곽길", SB_RECT, 15, 1));
@@ -225,14 +274,12 @@ public class CourseService {
         map.get(Kind.WALK).addAll(toLite(walkKw));
         map.get(Kind.VIEW).addAll(toLite(viewKw));
         map.get(Kind.SHOP).addAll(toLite(shopKw));
-        // 문화/관광 일부는 WALK/VIEW로
         map.get(Kind.WALK).addAll(toLite(culture));
         map.get(Kind.VIEW).addAll(toLite(culture));
         map.get(Kind.ACTIVITY).addAll(toLite(actKw));
 
-        // 중복 제거(장소 id 기준) + 상위 N개로 컷
+        // 중복 제거 + 트림
         map.replaceAll((k, v) -> dedupAndTrim(v, 80));
-
         return map;
     }
 
@@ -257,41 +304,14 @@ public class CourseService {
                             .categoryName(d.getCategoryName())
                             .build();
                 })
-                .filter(p -> p.getRoadAddress()!=null && p.getRoadAddress().contains("성북구")) // 성북구 보정
+                .filter(p -> p.getRoadAddress()!=null && p.getRoadAddress().contains("성북구"))
                 .collect(Collectors.toList());
     }
 
     private List<PlaceLite> dedupAndTrim(List<PlaceLite> list, int limit) {
         Map<String, PlaceLite> uniq = new LinkedHashMap<>();
-        for (PlaceLite p : list) {
-            uniq.putIfAbsent(p.getId(), p);
-        }
+        for (PlaceLite p : list) uniq.putIfAbsent(p.getId(), p);
         return uniq.values().stream().limit(limit).toList();
-    }
-
-    /* ===== 선택 로직 & 유틸 ===== */
-
-    private PlaceLite pickNearestFromGroup(List<Kind> group, Map<Kind, List<PlaceLite>> pools,
-                                           double lat, double lng, Set<String> used) {
-        PlaceLite best = null; double bestD = Double.MAX_VALUE;
-        for (Kind k : group) {
-            for (PlaceLite p : pools.getOrDefault(k, List.of())) {
-                if (used.contains(p.getId())) continue;
-                double d = haversineKm(lat, lng, p.getLat(), p.getLng());
-                if (d < bestD) { bestD = d; best = p; }
-            }
-        }
-        return best;
-    }
-
-    private static int nearestIndex(List<PlaceLite> list, double lat, double lng) {
-        int bestIdx = 0; double bestD = Double.MAX_VALUE;
-        for (int i = 0; i < list.size(); i++) {
-            PlaceLite p = list.get(i);
-            double d = haversineKm(lat, lng, p.getLat(), p.getLng());
-            if (d < bestD) { bestD = d; bestIdx = i; }
-        }
-        return bestIdx;
     }
 
     private static double[] centroidAll(Map<Kind, List<PlaceLite>> pools) {
@@ -318,11 +338,7 @@ public class CourseService {
     }
 
     private static String nullToEmpty(String s) { return s == null ? "" : s; }
-
-    private static double parseDoubleSafe(String s) {
-        try { return Double.parseDouble(s); } catch (Exception e) { return 0.0; }
-    }
-
+    private static double parseDoubleSafe(String s) { try { return Double.parseDouble(s); } catch (Exception e) { return 0.0; } }
     private static double haversineKm(double lat1, double lng1, double lat2, double lng2) {
         double R = 6371.0;
         double dLat = Math.toRadians(lat2 - lat1);
@@ -333,7 +349,6 @@ public class CourseService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         return R * c;
     }
-
     private static double round1(double v) { return Math.round(v * 10.0) / 10.0; }
 
     private String normalizeEmotion(String in) {
