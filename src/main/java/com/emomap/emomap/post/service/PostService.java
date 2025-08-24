@@ -51,9 +51,7 @@ public class PostService {
                 emoCsv, req.placeName(), req.lat(), req.lng());
 
         // 2. 도로명 주소 보정
-        String road = (req.roadAddress() == null || req.roadAddress().isBlank())
-                ? kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null)
-                : req.roadAddress();
+        String road = kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null);
 
         // 3. 파일 저장
         List<String> imageUrls = Optional.ofNullable(images)

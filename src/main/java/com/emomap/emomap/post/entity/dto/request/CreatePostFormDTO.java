@@ -4,6 +4,5 @@ public record CreatePostFormDTO(
         String content,
         Double lat,
         Double lng,
-        String roadAddress,          // 선택
         String placeName
 ) {}

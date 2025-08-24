@@ -33,7 +33,7 @@ public class PostController {
                 multipart/form-data: post(JSON 'post') + images(파일[] 선택)
                 - 이미지가 없어도 사용 가능
                 - AI가 감정 1~3개 자동 분류("가족","우정","위로/치유","외로움","설렘/사랑","향수" 이 것 중에서 분류)
-                - post.roadAddress는 비우면 좌표로 자동 보정
+                - 도로명 주소도 위,경도 가지고 kakao api가 자동 보정
                 - post.placeName은 장소 이름(예: "스타벅스 종암점")
                 """
     )
@@ -56,7 +56,7 @@ public class PostController {
         @Schema(
                 description = """
                     게시글 JSON(이미지 없이 사용 가능, 감정 자동 분류):
-                    {"content":"내용","lat":37.6,"lng":127.03, "placeName":"스타벅스 종암점"}
+                    {"content":"내용","lat":37.6,"lng":127.03,"placeName":"스타벅스 종암점"}
                     """,
                 implementation = CreatePostFormDTO.class
         )
