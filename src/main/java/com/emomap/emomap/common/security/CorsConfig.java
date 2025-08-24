@@ -17,7 +17,7 @@ public class CorsConfig {
                 "http://localhost:3000",
                 "https://clustory.shop",
                 "https://www.clustory.shop",
-                "https://emotion-map-fe.vercel.app"
+                "https://emotion-map-nine.vercel.app"
         ));
         cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
