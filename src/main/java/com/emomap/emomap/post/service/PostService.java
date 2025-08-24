@@ -9,6 +9,7 @@ import com.emomap.emomap.post.entity.dto.response.SearchPostResponseDTO;
 import com.emomap.emomap.post.repository.MarkerView;
 import com.emomap.emomap.post.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +18,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PostService {
@@ -36,22 +38,24 @@ public class PostService {
     public CreatePostResponseDTO createPostForm(CreatePostFormDTO req, List<MultipartFile> images) {
         String content = req.content() == null ? "" : req.content().trim();
 
-        // 1. 감정 태그 정규화(항상 한글 CSV)
+        // 1. 감정 자동 분류
         String emoCsv;
         try {
-            emoCsv = emotionClassifier.classifyIfBlank(content, req.emotions());
+            emoCsv = emotionClassifier.classifyIfBlank(content, null);
+            emoCsv = normalizeKoCsv(emoCsv);
         } catch (Exception e) {
-            org.slf4j.LoggerFactory.getLogger(PostService.class)
-                    .warn("Emotion classify failed -> fallback empty. cause={}", e.toString());
-            emoCsv = (req.emotions() == null) ? "" : req.emotions(); // 실패 시 비우거나 전달값 그대로
+            log.warn("Emotion classify failed -> fallback empty. cause={}", e.toString());
+            emoCsv = "";
         }
+        log.info("[POST/FORM] classified tags csv='{}', placeName='{}', lat={}, lng={}",
+                emoCsv, req.placeName(), req.lat(), req.lng());
 
         // 2. 도로명 주소 보정
-        String road    = (req.roadAddress() == null || req.roadAddress().isBlank())
+        String road = (req.roadAddress() == null || req.roadAddress().isBlank())
                 ? kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null)
                 : req.roadAddress();
 
-        // 3. 파일 저장은 URL 리스트로
+        // 3. 파일 저장
         List<String> imageUrls = Optional.ofNullable(images)
                 .orElse(List.of())
                 .stream()
@@ -73,9 +77,41 @@ public class PostService {
         postRepository.save(p);
 
         // 5. 응답
-        return new CreatePostResponseDTO(
-                p.getId(), p.getLat(), p.getLng(), road, p.getPlaceName(), splitTags(p.getEmotions()), imageUrls
+        CreatePostResponseDTO dto = new CreatePostResponseDTO(
+                p.getId(), p.getLat(), p.getLng(), road, p.getPlaceName(),
+                splitTags(p.getEmotions()), imageUrls
         );
+        log.info("[POST/FORM] saved id={}, tags={}, images={}",
+                p.getId(), dto.tags(), dto.imageUrls().size());
+        return dto;
+    }
+
+    private String normalizeKoCsv(String csv) {
+        if (csv == null || csv.isBlank()) return "";
+        List<String> cleaned = Arrays.stream(csv.split("[,\\s]+"))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .map(this::mapToKoAllowed)
+                .filter(KO_ALLOWED::contains)
+                .distinct()
+                .limit(3)
+                .toList();
+        return String.join(",", cleaned);
+    }
+
+    private String mapToKoAllowed(String raw) {
+        if (raw == null || raw.isBlank()) return "";
+        String s = raw.toLowerCase(Locale.ROOT);
+
+        return switch (s) {
+            case "family"        -> "가족";
+            case "friend", "friends", "friendship" -> "우정";
+            case "comfort", "healing" -> "위로/치유";
+            case "lonely", "loneliness", "alone" -> "외로움";
+            case "excitement", "excited", "flutter", "love", "heart" -> "설렘/사랑";
+            case "nostalgia", "memory", "retro" -> "향수";
+            default -> raw;
+        };
     }
 
     /* -------------------- 조회/검색/피드 -------------------- */

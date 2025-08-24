@@ -5,6 +5,5 @@ public record CreatePostFormDTO(
         Double lat,
         Double lng,
         String roadAddress,          // 선택
-        String placeName,
-        String emotions           // 선택(비어 있으면 gemini로 분류함)
+        String placeName
 ) {}

@@ -32,11 +32,9 @@ public class PostController {
             description = """
                 multipart/form-data: post(JSON 'post') + images(파일[] 선택)
                 - 이미지가 없어도 사용 가능
-                - post.emotions는 비우면 AI가 1~3개 자동 분류
+                - AI가 감정 1~3개 자동 분류("가족","우정","위로/치유","외로움","설렘/사랑","향수" 이 것 중에서 분류)
                 - post.roadAddress는 비우면 좌표로 자동 보정
                 - post.placeName은 장소 이름(예: "스타벅스 종암점")
-                - 감정 태그 수동 입력 시 한글 CSV(최대 3개)만 허용
-                  허용: "가족","우정","위로/치유","외로움","설렘/사랑","향수"
                 """
     )
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
@@ -57,8 +55,8 @@ public class PostController {
     static class CreatePostFormSwagger {
         @Schema(
                 description = """
-                    게시글 JSON(한글 감정 태그 허용, 이미지 없이 사용 가능):
-                    {"content":"내용","lat":37.6,"lng":127.03, "placeName":"스타벅스 종암점", "emotions":"우정,향수"}
+                    게시글 JSON(이미지 없이 사용 가능, 감정 자동 분류):
+                    {"content":"내용","lat":37.6,"lng":127.03, "placeName":"스타벅스 종암점"}
                     """,
                 implementation = CreatePostFormDTO.class
         )
