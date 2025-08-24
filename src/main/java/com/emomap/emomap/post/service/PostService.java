@@ -31,7 +31,7 @@ public class PostService {
     private final StorageService storageService;
 
     private static final Set<String> KO_ALLOWED = Set.of(
-            "가족","우정","위로/치유","외로움","설렘/사랑","향수"
+            "가족","우정","위로/치유","외로움","설렘/사랑","향수","기쁨/신남","화남/분노"
     );
 
     /* ------------ 생성(FormData) ------------ */

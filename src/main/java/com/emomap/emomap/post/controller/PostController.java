@@ -32,7 +32,7 @@ public class PostController {
             description = """
                 multipart/form-data: post(JSON 'post') + images(파일[] 선택)
                 - 이미지가 없어도 사용 가능
-                - AI가 감정 1~3개 자동 분류("가족","우정","위로/치유","외로움","설렘/사랑","향수" 이 것 중에서 분류)
+                - AI가 감정 1~3개 자동 분류("가족","우정","위로/치유","외로움","설렘/사랑","향수","기쁨/신남","화남/분노" 이 것 중에서 분류)
                 - 도로명 주소도 위,경도 가지고 kakao api가 자동 보정
                 - post.placeName은 장소 이름(예: "스타벅스 종암점")
                 """
