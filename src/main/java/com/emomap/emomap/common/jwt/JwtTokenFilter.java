@@ -38,7 +38,8 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/api/user/**",
             "/posts/**",
             "/uploads/**",
-            "/h2-console/**"
+            "/h2-console/**",
+            "/courses/**"
     );
 
     @Override
