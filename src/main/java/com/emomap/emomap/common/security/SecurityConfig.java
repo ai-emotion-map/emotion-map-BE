@@ -44,7 +44,8 @@ public class SecurityConfig {
                                 "/api/user/**",
                                 "/posts/**",
                                 "/uploads/**",
-                                "/h2-console/**"
+                                "/h2-console/**",
+                                "/courses/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
