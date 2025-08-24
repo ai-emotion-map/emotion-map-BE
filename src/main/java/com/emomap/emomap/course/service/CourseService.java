@@ -3,8 +3,10 @@ package com.emomap.emomap.course.service;
 import com.emomap.emomap.course.entity.dto.CourseRequestDTO;
 import com.emomap.emomap.course.entity.dto.CourseResponseDTO;
 import com.emomap.emomap.course.entity.dto.CourseStopDTO;
-import com.emomap.emomap.course.repository.CourseRepository;
-import com.emomap.emomap.post.entity.Post;
+import com.emomap.emomap.place.KakaoPlaceClient;
+import com.emomap.emomap.place.KakaoPlaceClient.KakaoPlaceDoc;
+import com.emomap.emomap.place.KakaoPlaceClient.Rect;
+import com.emomap.emomap.place.PlaceLite;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -15,14 +17,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CourseService {
 
-    private final CourseRepository courseRepository;
+    private final KakaoPlaceClient kakao;
 
     /* ===== 고정값 ===== */
     private static final String AREA_DEFAULT = "성북구";
     private static final int COUNT_FIXED = 3;
-    private static final int CANDIDATE_LIMIT = 200;
+    // 성북구 대략 bbox
+    private static final Rect SB_RECT = new Rect(127.005, 37.586, 127.058, 37.634);
 
-    /* ===== 감정/카테고리 정의 ===== */
+    /* ===== 감정/카테고리 ===== */
     private enum Kind { WALK, VIEW, CAFE, SHOP, FOOD, PUB, ACTIVITY }
 
     private static final Set<String> EMOTIONS_KO = Set.of(
@@ -39,35 +42,7 @@ public class CourseService {
             Map.entry("anger","화남/분노")
     );
 
-    // 키워드 사전
-    private static final String[] KW_WALK = {
-            "산책","공원","둘레길","천","정릉천","성북천","성곽","한양도성","숲","북서울꿈의숲",
-            "전시","미술관","박물관","도서관","포토","포토스팟","길","야외","산","녹지"
-    };
-    private static final String[] KW_VIEW = {
-            "전망","뷰","전망대","야경","루프탑","스카이","언덕","성곽","전망 좋은"
-    };
-    private static final String[] KW_CAFE = {
-            "카페","커피","디저트","브런치","베이커리","빵집","케이크","라떼","티룸","와플","스콘","마카롱"
-    };
-    private static final String[] KW_SHOP = {
-            "소품","문구","편집샵","편집숍","리빙샵","마켓","플리마켓","빈티지","서점","북카페","플라워","꽃집","샵"
-    };
-    private static final String[] KW_FOOD = {
-            "맛집","식당","고기","파스타","피자","초밥","라멘","국수","한식","분식","카레","버거",
-            "매운","마라","닭발","떡볶이","곱창","닭갈비","치킨","전골","찜","칼국수","냉면"
-    };
-    private static final String[] KW_PUB = {
-            "술집","호프","포차","주점","포장마차","펍","pub","izakaya","이자카야","bar","바","와인바",
-            "칵테일","수제맥주","맥주","소주","하이볼"
-    };
-    private static final String[] KW_ACTIVITY = {
-            "사격","양궁","볼링","당구","포켓볼","다트","방탈출","만화카페","노래방","코인노래방","오락실",
-            "PC방","게임","클라이밍","스크린골프","스크린야구","탁구","펀치","타격","암벽"
-    };
-
-    // 감정별 시퀀스로 OR 그룹이며 해당 Kind 중 현재 기준점과 가장 가까운 후보 하나만 뽑는 것임
-    // 예: 화남/분노 = [ACTIVITY] -> [PUB or FOOD] -> [WALK or VIEW]
+    // 감정별 시퀀스(OR 그룹)
     private static final Map<String, List<List<Kind>>> EMOTION_SEQUENCE = Map.of(
             "우정", List.of(
                     List.of(Kind.WALK, Kind.ACTIVITY),
@@ -105,34 +80,29 @@ public class CourseService {
                     List.of(Kind.CAFE)
             ),
             "화남/분노", List.of(
-                    List.of(Kind.ACTIVITY),          // 스트레스 해소
-                    List.of(Kind.PUB, Kind.FOOD),    // 술집 or 매운 맛집
-                    List.of(Kind.WALK, Kind.VIEW)    // 쿨다운
+                    List.of(Kind.ACTIVITY),
+                    List.of(Kind.PUB, Kind.FOOD),
+                    List.of(Kind.WALK, Kind.VIEW)
             )
     );
 
     public CourseResponseDTO recommend(CourseRequestDTO req) {
-        // 1. 감정 정규화
         String emotion = normalizeEmotion(req.emotion());
 
-        // 2. 지역과 감정 가져오기
-        List<Post> candidates = courseRepository.findRecentInGuByTag(AREA_DEFAULT, emotion, CANDIDATE_LIMIT);
-        if (candidates.isEmpty()) {
+        // 1. Kakao에서 Kind별 후보 수집
+        Map<Kind, List<PlaceLite>> pools = fetchPoolsFromKakao();
+
+        // 후보 아무 것도 없으면 빈 응답
+        int totalCount = pools.values().stream().mapToInt(List::size).sum();
+        if (totalCount == 0) {
             return new CourseResponseDTO(emotion, AREA_DEFAULT, 0, 0.0, 0, List.of(), List.of());
         }
 
-        // 3. placeName 중복 제거(최신 우선)
-        candidates = dedupByPlaceName(candidates);
+        // 2. 감정 시퀀스로 3곳 선택
+        List<PlaceLite> picked = new ArrayList<>();
+        Set<String> used = new HashSet<>();
 
-        // 4. 키워드로 Kind 분리
-        Map<Kind, List<Post>> pools = buildPools(candidates);
-
-        // 5. 감정 시퀀스에 따라 3곳 선택 (부족하면 다른 풀이나 전체에서 채움)
-        // 기준점은 후보들의 중심으로 시작함. 이유는 코스가 성북구 내에서 너무 벌어지지 않게하기 위해서
-        List<Post> picked = new ArrayList<>();
-        Set<Long> used = new HashSet<>();
-
-        double[] centroid = centroid(candidates);
+        double[] centroid = centroidAll(pools);
         double curLat = centroid[0], curLng = centroid[1];
 
         List<List<Kind>> seq = EMOTION_SEQUENCE.getOrDefault(
@@ -143,100 +113,169 @@ public class CourseService {
                         List.of(Kind.SHOP, Kind.VIEW, Kind.FOOD)
                 )
         );
-        // 각 그룹에서 현재 위치에서 제일 가까운 후보 하나만 선택
+
         for (List<Kind> group : seq) {
-            Post p = pickNearestFromGroup(group, pools, curLat, curLng, used);
+            PlaceLite p = pickNearestFromGroup(group, pools, curLat, curLng, used);
             if (p != null) {
-                picked.add(p);
-                used.add(p.getId());
-                curLat = p.getLat();
-                curLng = p.getLng();
+                picked.add(p); used.add(p.getId());
+                curLat = p.getLat(); curLng = p.getLng();
             }
             if (picked.size() >= COUNT_FIXED) break;
         }
 
+        // 부족하면 전체에서 가까운 순으로 채움
         if (picked.size() < COUNT_FIXED) {
-            List<Post> rest = candidates.stream().filter(po -> !used.contains(po.getId())).toList();
+            List<PlaceLite> rest = pools.values().stream().flatMap(List::stream)
+                    .filter(pl -> !used.contains(pl.getId()))
+                    .toList();
             while (picked.size() < COUNT_FIXED && !rest.isEmpty()) {
                 int idx = nearestIndex(rest, curLat, curLng);
-                Post p = rest.get(idx);
+                PlaceLite p = rest.get(idx);
                 picked.add(p); used.add(p.getId());
                 curLat = p.getLat(); curLng = p.getLng();
-                rest = rest.stream().filter(po -> !used.contains(po.getId())).toList();
+                rest = rest.stream().filter(pl -> !used.contains(pl.getId())).toList();
             }
         }
 
-        // 6. polyline(stop만 연결)이랑 총거리 계산해서 도보시간 환산
+        // 3. 응답 매핑 content는 Kakao 정보로 간단하게 요약
         List<double[]> polyline = new ArrayList<>();
         List<CourseStopDTO> stops = new ArrayList<>();
         double totalKm = 0.0;
 
         for (int i = 0; i < picked.size(); i++) {
-            Post p = picked.get(i);
+            PlaceLite p = picked.get(i);
             polyline.add(new double[]{p.getLat(), p.getLng()});
 
-            // 거리: 하버사인(직선)
             double d = (i == 0) ? 0.0 : haversineKm(
                     picked.get(i - 1).getLat(), picked.get(i - 1).getLng(),
                     p.getLat(), p.getLng()
             );
             totalKm += d;
 
-            String thumb = (p.getImageUrls()!=null && !p.getImageUrls().isEmpty()) ? p.getImageUrls().get(0) : null;
+            String content = buildContentSummary(p);
 
             stops.add(new CourseStopDTO(
-                    p.getId(),
-                    p.getPlaceName(),
+                    p.getId(),                  // 카카오 place id
+                    p.getName(),
                     p.getRoadAddress(),
                     p.getLat(),
                     p.getLng(),
-                    splitKoTags(p.getEmotions()),
-                    thumb,
-                    safe(p.getContent()),
+                    List.of(emotion),           // 태그: 요청 감정 1개
+                    null,                       // thumbnailUrl (없음)
+                    content,                    // 카카오 요약
+                    p.getKakaoUrl(),
                     round1(d)
             ));
         }
 
-        int walkMin = (int)Math.round(totalKm / 4.0 * 60.0); // 4km/h 기준
+        int walkMin = (int)Math.round(totalKm / 4.0 * 60.0);
         return new CourseResponseDTO(emotion, AREA_DEFAULT, stops.size(), round1(totalKm), walkMin, polyline, stops);
     }
 
-    /* ===== Utils ===== */
+    /* ===== Kakao를 풀로 구성 ===== */
 
-    private String normalizeEmotion(String in) {
-        if (in == null) return "우정";
-        String s = in.trim();
-        if (EMOTIONS_KO.contains(s)) return s;
-        String m = EN2KO.get(s.toLowerCase(Locale.ROOT));
-        return (m != null) ? m : "우정";
+    private Map<Kind, List<PlaceLite>> fetchPoolsFromKakao() {
+        Map<Kind, List<PlaceLite>> map = new EnumMap<>(Kind.class);
+        for (Kind k : Kind.values()) map.put(k, new ArrayList<>());
+
+        // 카테고리 기반
+        // 카페
+        map.get(Kind.CAFE).addAll(toLite(
+                kakao.searchCategoryInRect("CE7", SB_RECT, 15, 3)
+        ));
+        // 음식점
+        map.get(Kind.FOOD).addAll(toLite(
+                kakao.searchCategoryInRect("FD6", SB_RECT, 15, 3)
+        ));
+        // 주점
+        map.get(Kind.PUB).addAll(toLite(
+                kakao.searchCategoryInRect("OL7", SB_RECT, 15, 2)
+        ));
+        // 관광/전시/문화는 VIEW/WALK/ACTIVITY 후보 일부를 커버 함
+        List<KakaoPlaceDoc> culture = new ArrayList<>();
+        culture.addAll(kakao.searchCategoryInRect("AT4", SB_RECT, 15, 2)); // 관광명소
+        culture.addAll(kakao.searchCategoryInRect("CT1", SB_RECT, 15, 2)); // 문화시설
+
+        // 키워드 기반 보강
+        List<KakaoPlaceDoc> walkKw = new ArrayList<>();
+        walkKw.addAll(kakao.searchKeywordInRect("산책로", SB_RECT, 15, 2));
+        walkKw.addAll(kakao.searchKeywordInRect("성곽길", SB_RECT, 15, 1));
+        walkKw.addAll(kakao.searchKeywordInRect("성북천", SB_RECT, 15, 1));
+        walkKw.addAll(kakao.searchKeywordInRect("정릉천", SB_RECT, 15, 1));
+        walkKw.addAll(kakao.searchKeywordInRect("공원", SB_RECT, 15, 2));
+
+        List<KakaoPlaceDoc> viewKw = new ArrayList<>();
+        viewKw.addAll(kakao.searchKeywordInRect("전망", SB_RECT, 15, 1));
+        viewKw.addAll(kakao.searchKeywordInRect("야경", SB_RECT, 15, 1));
+        viewKw.addAll(kakao.searchKeywordInRect("루프탑", SB_RECT, 15, 1));
+
+        List<KakaoPlaceDoc> shopKw = new ArrayList<>();
+        shopKw.addAll(kakao.searchKeywordInRect("소품샵", SB_RECT, 15, 2));
+        shopKw.addAll(kakao.searchKeywordInRect("문구점", SB_RECT, 15, 1));
+        shopKw.addAll(kakao.searchKeywordInRect("빈티지샵", SB_RECT, 15, 1));
+        shopKw.addAll(kakao.searchKeywordInRect("서점", SB_RECT, 15, 1));
+        shopKw.addAll(kakao.searchKeywordInRect("플라워", SB_RECT, 15, 1));
+
+        List<KakaoPlaceDoc> actKw = new ArrayList<>();
+        for (String q : List.of("볼링장","다트","사격","방탈출","노래방","오락실","클라이밍","스크린골프","스크린야구","만화카페","탁구")) {
+            actKw.addAll(kakao.searchKeywordInRect(q, SB_RECT, 15, 1));
+        }
+
+        // 매핑
+        map.get(Kind.WALK).addAll(toLite(walkKw));
+        map.get(Kind.VIEW).addAll(toLite(viewKw));
+        map.get(Kind.SHOP).addAll(toLite(shopKw));
+        // 문화/관광 일부는 WALK/VIEW로
+        map.get(Kind.WALK).addAll(toLite(culture));
+        map.get(Kind.VIEW).addAll(toLite(culture));
+        map.get(Kind.ACTIVITY).addAll(toLite(actKw));
+
+        // 중복 제거(장소 id 기준) + 상위 N개로 컷
+        map.replaceAll((k, v) -> dedupAndTrim(v, 80));
+
+        return map;
     }
 
-    private Map<Kind, List<Post>> buildPools(List<Post> cands) {
-        return Map.of(
-                Kind.WALK,     filterByKeywords(cands, KW_WALK),
-                Kind.VIEW,     filterByKeywords(cands, KW_VIEW),
-                Kind.CAFE,     filterByKeywords(cands, KW_CAFE),
-                Kind.SHOP,     filterByKeywords(cands, KW_SHOP),
-                Kind.FOOD,     filterByKeywords(cands, KW_FOOD),
-                Kind.PUB,      filterByKeywords(cands, KW_PUB),
-                Kind.ACTIVITY, filterByKeywords(cands, KW_ACTIVITY)
-        );
+    private List<PlaceLite> toLite(List<KakaoPlaceDoc> docs) {
+        return docs.stream()
+                .filter(Objects::nonNull)
+                .map(d -> {
+                    double lat = parseDoubleSafe(d.getY());
+                    double lng = parseDoubleSafe(d.getX());
+                    return PlaceLite.builder()
+                            .id(d.getId())
+                            .name(nullToEmpty(d.getPlaceName()))
+                            .roadAddress(nullToEmpty(
+                                    (d.getRoadAddress()!=null && !d.getRoadAddress().isBlank())
+                                            ? d.getRoadAddress() : d.getAddressName()
+                            ))
+                            .lat(lat)
+                            .lng(lng)
+                            .kakaoUrl(d.getPlaceUrl())
+                            .phone(d.getPhone())
+                            .categoryGroupCode(d.getCategoryGroupCode())
+                            .categoryName(d.getCategoryName())
+                            .build();
+                })
+                .filter(p -> p.getRoadAddress()!=null && p.getRoadAddress().contains("성북구")) // 성북구 보정
+                .collect(Collectors.toList());
     }
 
-    private List<Post> filterByKeywords(List<Post> cands, String[] kws) {
-        return cands.stream().filter(p -> {
-            String target = (safe(p.getPlaceName()) + " " + safe(p.getContent())).toLowerCase(Locale.ROOT);
-            for (String kw : kws) if (target.contains(kw.toLowerCase(Locale.ROOT))) return true;
-            return false;
-        }).toList();
+    private List<PlaceLite> dedupAndTrim(List<PlaceLite> list, int limit) {
+        Map<String, PlaceLite> uniq = new LinkedHashMap<>();
+        for (PlaceLite p : list) {
+            uniq.putIfAbsent(p.getId(), p);
+        }
+        return uniq.values().stream().limit(limit).toList();
     }
 
-    private Post pickNearestFromGroup(List<Kind> group, Map<Kind, List<Post>> pools,
-                                      double lat, double lng, Set<Long> used) {
-        Post best = null; double bestD = Double.MAX_VALUE;
+    /* ===== 선택 로직 & 유틸 ===== */
+
+    private PlaceLite pickNearestFromGroup(List<Kind> group, Map<Kind, List<PlaceLite>> pools,
+                                           double lat, double lng, Set<String> used) {
+        PlaceLite best = null; double bestD = Double.MAX_VALUE;
         for (Kind k : group) {
-            List<Post> pool = pools.getOrDefault(k, List.of());
-            for (Post p : pool) {
+            for (PlaceLite p : pools.getOrDefault(k, List.of())) {
                 if (used.contains(p.getId())) continue;
                 double d = haversineKm(lat, lng, p.getLat(), p.getLng());
                 if (d < bestD) { bestD = d; best = p; }
@@ -245,47 +284,45 @@ public class CourseService {
         return best;
     }
 
-    private List<Post> dedupByPlaceName(List<Post> list) {
-        Set<String> seen = new HashSet<>();
-        List<Post> out = new ArrayList<>();
-        for (Post p : list) {
-            String key = safe(p.getPlaceName()).toLowerCase(Locale.ROOT);
-            if (key.isEmpty()) continue;
-            if (seen.add(key)) out.add(p);
-        }
-        return out;
-    }
-
-    private static String safe(String s) { return s == null ? "" : s; }
-
-    private static double[] centroid(List<Post> posts) {
-        double lat = posts.stream().mapToDouble(Post::getLat).average().orElse(37.607);
-        double lng = posts.stream().mapToDouble(Post::getLng).average().orElse(127.02);
-        return new double[]{lat, lng};
-    }
-
-    private static int nearestIndex(List<Post> list, double lat, double lng) {
+    private static int nearestIndex(List<PlaceLite> list, double lat, double lng) {
         int bestIdx = 0; double bestD = Double.MAX_VALUE;
         for (int i = 0; i < list.size(); i++) {
-            Post p = list.get(i);
+            PlaceLite p = list.get(i);
             double d = haversineKm(lat, lng, p.getLat(), p.getLng());
             if (d < bestD) { bestD = d; bestIdx = i; }
         }
         return bestIdx;
     }
 
-    private static List<String> splitKoTags(String csv) {
-        if (csv == null || csv.isBlank()) return List.of();
-        Set<String> allow = EMOTIONS_KO;
-        return Arrays.stream(csv.split("[,\\s]+"))
-                .map(String::trim)
-                .filter(allow::contains)
-                .distinct()
-                .limit(3)
-                .collect(Collectors.toList());
+    private static double[] centroidAll(Map<Kind, List<PlaceLite>> pools) {
+        List<PlaceLite> all = pools.values().stream().flatMap(List::stream).toList();
+        double lat = all.stream().mapToDouble(PlaceLite::getLat).average().orElse(37.607);
+        double lng = all.stream().mapToDouble(PlaceLite::getLng).average().orElse(127.02);
+        return new double[]{lat, lng};
     }
-    
-    // 하버사인 공식으로 단위는 km임. 직선거리로만 계산함
+
+    private static String buildContentSummary(PlaceLite p) {
+        StringBuilder sb = new StringBuilder();
+        if (p.getCategoryName()!=null && !p.getCategoryName().isBlank()) {
+            sb.append("카테고리: ").append(p.getCategoryName());
+        }
+        if (p.getPhone()!=null && !p.getPhone().isBlank()) {
+            if (!sb.isEmpty()) sb.append(" | ");
+            sb.append("전화: ").append(p.getPhone());
+        }
+        if (p.getKakaoUrl()!=null && !p.getKakaoUrl().isBlank()) {
+            if (!sb.isEmpty()) sb.append(" | ");
+            sb.append("링크: ").append(p.getKakaoUrl());
+        }
+        return sb.isEmpty() ? "카카오 장소 정보" : sb.toString();
+    }
+
+    private static String nullToEmpty(String s) { return s == null ? "" : s; }
+
+    private static double parseDoubleSafe(String s) {
+        try { return Double.parseDouble(s); } catch (Exception e) { return 0.0; }
+    }
+
     private static double haversineKm(double lat1, double lng1, double lat2, double lng2) {
         double R = 6371.0;
         double dLat = Math.toRadians(lat2 - lat1);
@@ -298,4 +335,12 @@ public class CourseService {
     }
 
     private static double round1(double v) { return Math.round(v * 10.0) / 10.0; }
+
+    private String normalizeEmotion(String in) {
+        if (in == null) return "우정";
+        String s = in.trim();
+        if (EMOTIONS_KO.contains(s)) return s;
+        String m = EN2KO.get(s.toLowerCase(Locale.ROOT));
+        return (m != null) ? m : "우정";
+    }
 }
