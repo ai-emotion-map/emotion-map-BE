@@ -49,7 +49,6 @@ Clustory는 사용자의 글·사진을 기반으로 **AI가 감정을 태깅하
 - Java 17+
 - Gradle  
 - PostgreSQL
-- 
 ---
 
 ### Build & Run
