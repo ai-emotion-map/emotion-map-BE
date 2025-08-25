@@ -6,6 +6,8 @@ import com.emomap.emomap.post.entity.dto.response.CreatePostResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.FeedItemDTO;
 import com.emomap.emomap.post.entity.dto.response.PostDetailResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.SearchPostResponseDTO;
+import com.emomap.emomap.post.entity.dto.request.EmotionClassifyRequestDTO;
+import com.emomap.emomap.post.entity.dto.response.EmotionClassifyResponseDTO;
 import com.emomap.emomap.post.repository.MarkerView;
 import com.emomap.emomap.post.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -34,21 +38,43 @@ public class PostService {
             "가족","우정","위로/치유","외로움","설렘/사랑","향수","기쁨/신남","화남/분노"
     );
 
+    /* ------------ 감정 분석 전용 ------------ */
+    public EmotionClassifyResponseDTO analyzeEmotions(EmotionClassifyRequestDTO req) {
+        String content = (req == null || req.content() == null) ? "" : req.content().trim();
+        String raw;
+        String csv;
+        try {
+            raw = emotionClassifier.classifyIfBlank(content, null);
+            csv = normalizeKoCsv(raw); // 최대 3개
+        } catch (Exception e) {
+            log.warn("[ANALYZE] classify failed: {}", e.toString());
+            raw = "";
+            csv = "";
+        }
+        var tags = splitTags(csv);
+        return new EmotionClassifyResponseDTO(tags, raw);
+    }
+
     /* ------------ 생성(FormData) ------------ */
     public CreatePostResponseDTO createPostForm(CreatePostFormDTO req, List<MultipartFile> images) {
         String content = req.content() == null ? "" : req.content().trim();
 
-        // 1. 감정 자동 분류
-        String emoCsv;
-        try {
-            emoCsv = emotionClassifier.classifyIfBlank(content, null);
-            emoCsv = normalizeKoCsv(emoCsv);
-        } catch (Exception e) {
-            log.warn("Emotion classify failed -> fallback empty. cause={}", e.toString());
-            emoCsv = "";
+        // 1. 프론트에서 최종 선택한 감정
+        List<String> tags = Optional.ofNullable(req.tags()).orElse(List.of()).stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(KO_ALLOWED::contains)
+                .distinct()
+                .limit(3)
+                .toList();
+
+        if (tags.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "tags가 비어 있습니다. /posts/analyze로 분석 후 최종 태그를 전달하세요."
+            );
         }
-        log.info("[POST/FORM] classified tags csv='{}', placeName='{}', lat={}, lng={}",
-                emoCsv, req.placeName(), req.lat(), req.lng());
+        String emoCsv = String.join(",", tags);
 
         // 2. 도로명 주소 보정
         String road = kakaoAPI.findRoadAddress(req.lat(), req.lng()).orElse(null);
