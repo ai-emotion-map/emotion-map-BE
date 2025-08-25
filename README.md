@@ -62,25 +62,6 @@ java -jar build/libs/emotion-map-BE-0.0.1-SNAPSHOT.jar
 
 ---
 
-### Environment Variables
-```ini
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/emomap
-SPRING_DATASOURCE_USERNAME=postgres
-SPRING_DATASOURCE_PASSWORD=postgres
-SPRING_JPA_HIBERNATE_DDL_AUTO=update
-
-SPRING_JWT_SECRET=please-change-me
-
-# 외부 API 키
-GEMINI_API_KEY=your-gemini-api-key
-KAKAO_REST_API_KEY=your-kakao-rest-api-key
-
-# CORS 허용 오리진
-CORS_ALLOWED_ORIGINS=http://localhost:3000,https://emotion-map-nine.vercel.app,https://clustory.shop,https://www.clustory.shop
-```
-
----
-
 ### 배포 URL
 - Frontend: https://emotion-map-nine.vercel.app/
 
