@@ -63,6 +63,7 @@ java -jar build/libs/emotion-map-BE-0.0.1-SNAPSHOT.jar
 
 ### 배포 URL
 - Frontend: https://emotion-map-nine.vercel.app/
+- 백엔드 → 프론트 연결 구조 (API 서버는 AWS, 클라이언트는 Vercel)
 
 ---
 
