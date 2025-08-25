@@ -120,6 +120,11 @@ public class PostService {
         return postRepository.findLatest(PageRequest.of(page, size));
     }
 
+    private String firstOrNull(List<String> list) {
+        return (list != null && !list.isEmpty()) ? list.get(0) : null;
+    }
+
+
     public Page<SearchPostResponseDTO> search(String q, String tag,
                                               Double minLat, Double maxLat,
                                               Double minLng, Double maxLng,
@@ -144,7 +149,8 @@ public class PostService {
                         m.getPlaceName(),
                         m.getContent(),
                         splitTags(m.getEmotions()),
-                        toOffset(m.getCreatedAt())
+                        toOffset(m.getCreatedAt()),
+                        null
                 ))
                 .toList();
     }
@@ -153,7 +159,7 @@ public class PostService {
         return new SearchPostResponseDTO(
                 p.getId(), p.getLat(), p.getLng(),
                 p.getRoadAddress(), p.getPlaceName(), p.getContent(),
-                splitTags(p.getEmotions()), toOffset(p.getCreatedAt())
+                splitTags(p.getEmotions()), toOffset(p.getCreatedAt()), firstOrNull(p.getImageUrls())
         );
     }
 

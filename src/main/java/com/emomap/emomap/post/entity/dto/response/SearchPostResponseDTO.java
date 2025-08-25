@@ -11,5 +11,6 @@ public record SearchPostResponseDTO(
         String placeName,
         String content,
         List<String> tags,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        String thumbnailUrl
 ) {}

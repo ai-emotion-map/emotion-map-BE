@@ -85,6 +85,7 @@ public class PostController {
                     - tag: 감정 태그(포함 검색, 한글만) 예: 우정, 향수
                     - 지도 범위: minLat, maxLat, minLng, maxLng (네 값 모두 있을 때만 적용)
                     - 페이지네이션: page(0부터), size(기본 20, 최대 100)
+                    - 응답 필드: thumbnailUrl(첫 번째 이미지 URL, 없으면 null)
                     """
     )
     @GetMapping("/search")
