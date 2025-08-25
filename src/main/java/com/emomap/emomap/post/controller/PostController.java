@@ -5,8 +5,8 @@ import com.emomap.emomap.post.entity.dto.response.CreatePostResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.FeedItemDTO;
 import com.emomap.emomap.post.entity.dto.response.PostDetailResponseDTO;
 import com.emomap.emomap.post.entity.dto.response.SearchPostResponseDTO;
-import com.emomap.emomap.post.entity.dto.request.EmotionClassifyRequestDTO;
-import com.emomap.emomap.post.entity.dto.response.EmotionClassifyResponseDTO;
+import com.emomap.emomap.post.entity.dto.request.UpdateTagsRequestDTO;
+import com.emomap.emomap.post.entity.dto.response.UpdateTagsResponseDTO;
 import com.emomap.emomap.post.service.PostService;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -30,27 +30,11 @@ public class PostController {
     private final PostService postService;
 
     @Operation(
-            summary = "감정 분석",
-            description = """
-            - 본문만 보내면 AI가 8개 라벨셋 중 1~3개로 분류해서 반환
-            - DB 저장 없음. 사용자가 태그 조정한 뒤 최종 글 작성에 사용
-            요청 예:
-            { "content": "친구랑 정릉에서 저녁 먹고 산책했다. 기분 좋았다." }
-            응답 예:
-            { "tags": ["우정","기쁨/신남"], "raw": "(모델 응답)" }
-            """
-    )
-    @PostMapping("/analyze")
-    public EmotionClassifyResponseDTO analyze(@RequestBody EmotionClassifyRequestDTO req) {
-        return postService.analyzeEmotions(req);
-    }
-
-    @Operation(
             summary = "게시글 생성",
             description = """
                 multipart/form-data: post(JSON 'post') + images(파일[] 선택)
                 - 이미지가 없어도 사용 가능
-                - AI 자동 분류 없음: 반드시 post.tags를 함께 보내야 저장됨
+                - AI가 감정 1~3개 자동 분류("가족","우정","위로/치유","외로움","설렘/사랑","향수","기쁨/신남","화남/분노" 이 것 중에서 분류)
                 - 도로명 주소도 위,경도 가지고 kakao api가 자동 보정
                 - post.placeName은 장소 이름(예: "스타벅스 종암점")
                 """
@@ -73,9 +57,8 @@ public class PostController {
     static class CreatePostFormSwagger {
         @Schema(
                 description = """
-                    게시글 JSON(이미지 없이 사용 가능)
-                    감정 자동분류 없음. 반드시 'tags' 배열 포함
-                    {"content":"내용","lat":37.6,"lng":127.03,"placeName":"스타벅스 종암점","tags":["우정","기쁨/신남"]}
+                    게시글 JSON(이미지 없이 사용 가능, 감정 자동 분류):
+                    {"content":"내용","lat":37.6,"lng":127.03,"placeName":"스타벅스 종암점"}
                     """,
                 implementation = CreatePostFormDTO.class
         )
@@ -130,5 +113,36 @@ public class PostController {
             @RequestParam(required = false) Double maxLng
     ) {
         return postService.markers(minLat, maxLat, minLng, maxLng);
+    }
+
+    @Operation(
+            summary = "게시글 태그 수정",
+            description = """
+        - 저장된 게시글의 감정 태그만 수정
+        - URL 경로의 {id}를 기준으로 수정
+        - body.id가 함께 오면 URL의 id와 동일해야 함(다르면 400)
+        요청 예:
+          PATCH /posts/123/tags
+          { "id": 123, "tags": ["우정","기쁨/신남"] }
+        응답 예:
+          200 OK
+          { "id": 123, "tags": ["우정","기쁨/신남"] }
+        """
+    )
+    @PatchMapping("/{id}/tags")
+    public ResponseEntity<UpdateTagsResponseDTO> updateTags(
+            @PathVariable Long id,
+            @RequestBody UpdateTagsRequestDTO body
+    ) {
+        // body.id가 존재하면 URL의 id와 일치하는지 검증
+        if (body.id() != null && !body.id().equals(id)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "PathVariable id와 body.id가 다릅니다."
+            );
+        }
+
+        var confirmed = postService.updateTagsAndReturn(id, body.tags());
+        return ResponseEntity.ok(new UpdateTagsResponseDTO(id, confirmed));
     }
 }
